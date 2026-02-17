@@ -110,7 +110,8 @@ This project was architected by Daniel and implemented using an **AI-Augmented W
 ## References
 
 - van den Oord et al., *Neural Discrete Representation Learning* (VQ-VAE, 2017)
-- Assran et al., *Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture* (I-JEPA, 2023)
+- LeCun, *A Path Towards Autonomous Machine Intelligence* (JEPA framework, 2022)
+- Assran, Duval, Misra, Bojanowski, Vincent, Rabbat, LeCun & Ballas, *Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture* (I-JEPA, 2023)
 - Bardes et al., *VICReg: Variance-Invariance-Covariance Regularization* (2022)
 - Gu & Dao, *Mamba: Linear-Time Sequence Modeling with Selective State Spaces* (2023)
 - Kim et al., *Reversible Instance Normalization for Accurate Time-Series Forecasting* (RevIN, 2022)
