@@ -1,10 +1,11 @@
 # Strate IV — Latent Regime RL configuration
-# obs_dim is auto-detected from buffer (3*d_model + n_tgt*3 + 5 + 3)
+# obs_dim is auto-detected from buffer (3*d_model + n_tgt*4 + 5 + 4)
 
 env:
   n_tgt: 8              # episode length in patches (8 × 16h = 128h ≈ 5.3 days)
-  tc_rate: 0.0005       # transaction cost per unit position change (5 bps)
+  tc_rate: 0.002        # transaction cost per unit position change (20 bps)
   patch_len: 16          # candles per patch (must match Strate I/II tokenizer)
+  dead_market_threshold: 1.0e-4  # relative vol below which signals are zeroed (noise gate)
 
 buffer:
   buffer_dir: "data/trajectory_buffer/"

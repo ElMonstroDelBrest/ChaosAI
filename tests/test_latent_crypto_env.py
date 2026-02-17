@@ -118,7 +118,7 @@ class TestLatentCryptoEnv:
     @pytest.fixture
     def env(self):
         buf = make_buffer(n_entries=10)
-        config = EnvConfig(n_tgt=8, tc_rate=0.0005, patch_len=16)
+        config = EnvConfig(n_tgt=8, tc_rate=0.002, patch_len=16)
         return LatentCryptoEnv(buffer=buf, config=config)
 
     def test_reset_returns_valid_obs(self, env):
@@ -220,6 +220,36 @@ class TestLatentCryptoEnv:
         assert n_changed >= 4, (
             f"Only {n_changed} dims changed between steps — observation is too static"
         )
+
+    def test_noise_gate_zeros_dead_market(self):
+        """When close volatility is negligible, market signals should be zeroed."""
+        # Create entry with near-zero volatility (stablecoin-like)
+        entry = make_dummy_entry()
+        entry = TrajectoryEntry(
+            context_tokens=entry.context_tokens,
+            weekend_mask=entry.weekend_mask,
+            context_ohlcv=entry.context_ohlcv,
+            future_ohlcv=entry.future_ohlcv,
+            future_latents=entry.future_latents,
+            revin_means=torch.tensor([[100.0, 100.0, 100.0, 100.0, 0.0]]),
+            revin_stds=torch.tensor([[1e-8, 1e-8, 1e-8, 1e-8, 1e-8]]),
+            last_close=100.0,
+            h_x_pooled=entry.h_x_pooled,
+        )
+        buf = TrajectoryBuffer.from_entries([entry] * 5)
+        config = EnvConfig(n_tgt=8, tc_rate=0.002, patch_len=16,
+                           dead_market_threshold=1e-4)
+        env = LatentCryptoEnv(buffer=buf, config=config)
+        obs, _ = env.reset(seed=42)
+
+        # future_mean_t, future_std_t should be zeroed (indices 128..384)
+        d = 128  # d_model in test entries
+        future_block = obs[d:3*d]  # future_mean_t + future_std_t
+        assert np.all(future_block == 0.0), "Noise gate should zero future latents"
+
+        # close_stats should be zeroed too
+        close_stats = obs[3*d:3*d + 8*3]
+        assert np.all(close_stats == 0.0), "Noise gate should zero close_stats"
 
 
 # ---------------------------------------------------------------------------

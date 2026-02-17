@@ -19,13 +19,17 @@ class EnvConfig:
 
     Args:
         n_tgt: Number of target patches per episode (episode length in steps).
-        tc_rate: Transaction cost rate (fraction, e.g. 0.0005 = 5 bps).
+        tc_rate: Transaction cost rate per unit of position change (20 bps).
         patch_len: Candles per patch (must match Strate I/II tokenizer).
+        dead_market_threshold: Relative volatility below which market signals
+            are zeroed out (noise gate). Prevents hallucinated positions on
+            flat/dead markets where RevIN amplifies floating-point noise.
     """
 
     n_tgt: int = 8
-    tc_rate: float = 0.0005
+    tc_rate: float = 0.002
     patch_len: int = 16
+    dead_market_threshold: float = 1e-4
 
 
 @dataclass(frozen=True)

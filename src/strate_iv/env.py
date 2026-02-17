@@ -213,6 +213,19 @@ class LatentCryptoEnv(gym.Env):
                 (closes[s + 1] - closes[s]) / (abs(closes[s]) + EPS)
             )
 
+        # Noise gate: zero out market signals when volatility is negligible.
+        # Prevents hallucinated positions on dead/flat markets where RevIN
+        # amplifies floating-point noise through division by near-zero sigma.
+        close_mean = abs(entry.revin_means[0, 3].item())
+        close_std = revin_stds[3]
+        relative_vol = close_std / (close_mean + EPS)
+        if relative_vol < self.config.dead_market_threshold:
+            future_mean_t = np.zeros_like(future_mean_t)
+            future_std_t = np.zeros_like(future_std_t)
+            close_stats = np.zeros_like(close_stats)
+            delta_mu = np.zeros_like(delta_mu)
+            realized_returns = np.zeros_like(realized_returns)
+
         # 9. position (1) — current portfolio position (dynamic)
         pos = np.array([position], dtype=np.float32)
 
