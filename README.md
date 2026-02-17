@@ -118,4 +118,4 @@ This project was architected by Daniel and implemented using an **AI-Augmented W
 
 ## License
 
-All rights reserved.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE). Any use of this code — including as a network service — requires publishing the complete source of derivative works under the same license.
