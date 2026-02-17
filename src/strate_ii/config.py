@@ -67,6 +67,7 @@ class DataConfig:
     token_dir: str = "data/tokens/"
     val_split: float = 0.2
     num_workers: int = 4
+    prefetch_factor: int = 2
 
 
 @dataclass(frozen=True)

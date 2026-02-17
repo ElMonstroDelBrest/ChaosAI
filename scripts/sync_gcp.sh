@@ -38,7 +38,7 @@ EXCLUDES=(
     --exclude '*.pt'
     --exclude '*.ckpt'
     --exclude '*.zip'
-    --exclude 'data/'
+    --exclude '/data/'
     --exclude 'outputs/'
     --exclude 'lightning_logs/'
     --exclude 'tb_logs/'

@@ -11,6 +11,8 @@ Usage:
 """
 
 import argparse
+import os
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -18,30 +20,46 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from src.strate_iv.config import EnvConfig, load_config
-from src.strate_iv.trajectory_buffer import TrajectoryBuffer
+from src.strate_iv.config import load_config
 from src.strate_iv.env import LatentCryptoEnv
+from src.strate_iv.trajectory_buffer import TrajectoryBuffer
 
 
-def run_episode(model, env, seed=None):
+def run_episode(
+    model: PPO, env, seed: int | None = None, use_vec: bool = False
+) -> dict:
     """Run one episode and collect trajectory data."""
-    obs, info = env.reset(seed=seed)
-    realized_idx = info["realized_future_idx"]
-    entry = env._entry
+    if use_vec:
+        obs = env.reset()
+        inner = env.venv.envs[0]
+        realized_idx = inner._realized_idx
+        entry = inner._entry
+    else:
+        obs, info = env.reset(seed=seed)
+        realized_idx = info["realized_future_idx"]
+        entry = env._entry
+        inner = env
 
     # Realized future OHLCV: (N_tgt, patch_len, 5)
     realized = entry.future_ohlcv[realized_idx].numpy()
-    n_tgt, patch_len, _ = realized.shape
 
     actions = []
     rewards = []
     positions = []
     cum_pnls = []
 
-    for step in range(env.config.n_tgt):
+    n_tgt = inner.config.n_tgt
+    for step in range(n_tgt):
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, info = env.step(action)
+        if use_vec:
+            obs, reward_arr, done_arr, info_arr = env.step(action)
+            reward = float(reward_arr[0])
+            info = info_arr[0]
+            terminated = done_arr[0]
+        else:
+            obs, reward, terminated, truncated, info = env.step(action)
 
         actions.append(float(action[0]))
         rewards.append(reward)
@@ -62,7 +80,7 @@ def run_episode(model, env, seed=None):
     }
 
 
-def plot_demo(traj, output_path):
+def plot_demo(traj: dict, output_path: str) -> None:
     """Generate 3-panel visualization."""
     realized = traj["realized_ohlcv"]  # (N_tgt, patch_len, 5)
     n_tgt, patch_len, _ = realized.shape
@@ -78,10 +96,8 @@ def plot_demo(traj, output_path):
     # Buy & Hold PnL: normalized to start at 0
     bh_returns = (close_flat - close_flat[0]) / close_flat[0]
 
-    # Agent cumulative PnL (already computed by env, but in reward-space)
-    # Re-derive in price-space for fair comparison with B&H
+    # Agent cumulative PnL re-derived in price-space for fair comparison
     agent_pnl_price = np.zeros(len(close_flat))
-    position = 0.0
     cum = 0.0
     for t in range(n_tgt):
         action = traj["actions"][t]
@@ -91,7 +107,6 @@ def plot_demo(traj, output_path):
                 ret = (close_flat[idx] - close_flat[idx - 1]) / close_flat[idx - 1]
                 cum += action * ret
             agent_pnl_price[idx] = cum
-        position = action
 
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True,
                               gridspec_kw={"height_ratios": [3, 1.5, 2]})
@@ -163,7 +178,7 @@ def plot_demo(traj, output_path):
     print(f"Saved to {output_path}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Strate IV demo visualization")
     parser.add_argument("--model_path", type=str,
                         default="tb_logs/strate_iv/best_model/best_model.zip")
@@ -182,16 +197,32 @@ def main():
     _, eval_buffer = buffer.split(val_ratio=config.buffer.val_ratio)
     print(f"Eval buffer: {len(eval_buffer)} episodes")
 
-    env = LatentCryptoEnv(buffer=eval_buffer, config=config.env)
+    # Try to load VecNormalize stats if available
+    vecnorm_path = os.path.join(
+        os.path.dirname(args.model_path), "..", "checkpoints", "vecnormalize.pkl"
+    )
+
+    if os.path.exists(vecnorm_path):
+        vec_env = DummyVecEnv([lambda: LatentCryptoEnv(buffer=eval_buffer, config=config.env)])
+        vec_env = VecNormalize.load(vecnorm_path, vec_env)
+        vec_env.training = False
+        vec_env.norm_reward = False
+        print(f"Loaded VecNormalize stats from {vecnorm_path}")
+        env = vec_env
+        use_vec = True
+    else:
+        env = LatentCryptoEnv(buffer=eval_buffer, config=config.env)
+        use_vec = False
+        print("No VecNormalize stats found, using raw observations")
+
     model = PPO.load(args.model_path)
     print(f"Loaded model from {args.model_path}")
 
-    from pathlib import Path
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     for i in range(args.n_demos):
         seed = (args.seed + i) if args.seed is not None else None
-        traj = run_episode(model, env, seed=seed)
+        traj = run_episode(model, env, seed=seed, use_vec=use_vec)
 
         if args.n_demos > 1:
             stem = Path(args.output).stem

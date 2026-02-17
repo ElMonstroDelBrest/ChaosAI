@@ -1,13 +1,28 @@
+"""Configuration dataclasses for Strate IV RL training.
+
+Defines frozen dataclasses for the environment, buffer, and PPO hyperparameters.
+Loaded from YAML via dacite with strict mode (no unknown keys allowed).
+"""
+
 from __future__ import annotations
 
-import yaml
 from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
 from dacite import from_dict, Config as DaciteConfig
 
 
 @dataclass(frozen=True)
 class EnvConfig:
-    obs_dim: int = 416
+    """RL environment parameters.
+
+    Args:
+        n_tgt: Number of target patches per episode (episode length in steps).
+        tc_rate: Transaction cost rate (fraction, e.g. 0.0005 = 5 bps).
+        patch_len: Candles per patch (must match Strate I/II tokenizer).
+    """
+
     n_tgt: int = 8
     tc_rate: float = 0.0005
     patch_len: int = 16
@@ -15,16 +30,41 @@ class EnvConfig:
 
 @dataclass(frozen=True)
 class BufferConfig:
+    """Pre-computed trajectory buffer parameters.
+
+    Args:
+        buffer_dir: Directory containing episode .pt files.
+        n_episodes: Target number of episodes to pre-compute.
+        n_futures: Number of future trajectories per episode (N).
+        val_ratio: Fraction of episodes reserved for evaluation.
+    """
+
     buffer_dir: str = "data/trajectory_buffer/"
     n_episodes: int = 255
     n_futures: int = 16
-    refresh_ratio: float = 0.2
-    refresh_every_epochs: int = 10
     val_ratio: float = 0.2
 
 
 @dataclass(frozen=True)
 class PPOConfig:
+    """Stable-Baselines3 PPO hyperparameters.
+
+    Args:
+        lr: Learning rate.
+        n_steps: Rollout length per environment per update.
+        batch_size: Minibatch size for PPO updates.
+        n_epochs: Number of SGD passes per PPO update.
+        gamma: Discount factor.
+        gae_lambda: GAE lambda for advantage estimation.
+        clip_range: PPO clipping parameter.
+        ent_coef: Entropy bonus coefficient.
+        vf_coef: Value function loss coefficient.
+        max_grad_norm: Gradient clipping norm.
+        total_timesteps: Total training timesteps.
+        eval_freq: Evaluate every N timesteps.
+        log_dir: TensorBoard log directory.
+    """
+
     lr: float = 3e-4
     n_steps: int = 2048
     batch_size: int = 64
@@ -42,12 +82,22 @@ class PPOConfig:
 
 @dataclass(frozen=True)
 class StrateIVConfig:
+    """Root configuration composing env, buffer, and PPO sections."""
+
     env: EnvConfig = field(default_factory=EnvConfig)
     buffer: BufferConfig = field(default_factory=BufferConfig)
     ppo: PPOConfig = field(default_factory=PPOConfig)
 
 
-def load_config(path: str) -> StrateIVConfig:
+def load_config(path: str | Path) -> StrateIVConfig:
+    """Load and validate a Strate IV config from YAML.
+
+    Args:
+        path: Path to the YAML configuration file.
+
+    Returns:
+        Validated StrateIVConfig instance.
+    """
     with open(path, "r") as f:
         config_dict = yaml.safe_load(f)
     return from_dict(

@@ -1,21 +1,37 @@
+###############################################################################
+# Strate II — GOD-TIER config (H100 80GB)
+#
+# Model: ~54.5M params total, ~29.2M trainable
+# VRAM: ~5 GB @ batch=512 bf16 → H100 80GB barely warmed up
+# Target: Foundation Model Financier on 432 pairs (1 TB raw data)
+#
+# Scaling rationale (vs prototype):
+#   d_model   128 → 512   (4× richer representations)
+#   d_state    16 → 64    (4× longer SSM memory)
+#   n_layers    6 → 12    (2× deeper)
+#   n_heads     2 → 8     (4× more parallel SSM heads)
+#   batch      32 → 512   (16× saturate Tensor Cores)
+#   seq_len    64 → 128   (2× longer context window)
+###############################################################################
+
 mamba2:
-  d_model: 128
-  d_state: 16
-  n_layers: 6
-  n_heads: 2
+  d_model: 512
+  d_state: 64
+  n_layers: 12
+  n_heads: 8
   expand_factor: 2
   conv_kernel: 4
 
 predictor:
-  hidden_dim: 256
-  n_layers: 2
-  dropout: 0.1
-  z_dim: 32
+  hidden_dim: 1024
+  n_layers: 4
+  dropout: 0.05
+  z_dim: 128
 
 masking:
   mask_ratio: 0.5
   block_size_min: 4
-  block_size_max: 8
+  block_size_max: 16       # Larger blocks for longer sequences
 
 vicreg:
   inv_weight: 25.0
@@ -24,24 +40,25 @@ vicreg:
   var_gamma: 1.0
 
 ema:
-  tau_start: 0.996
+  tau_start: 0.998          # Slower target update for bigger model
   tau_end: 1.0
-  anneal_epochs: 100
+  anneal_epochs: 200
 
 embedding:
   num_codes: 1024
   codebook_dim: 64
-  seq_len: 64
+  seq_len: 128              # 2× context (re-tokenize with --seq_len 128)
 
 training:
-  lr: 1.0e-4
-  weight_decay: 1.0e-2
-  max_epochs: 100
-  warmup_epochs: 10
-  batch_size: 32
-  precision: 'bf16-mixed'
+  lr: 3.0e-4                # Linear scaling: 1e-4 × sqrt(512/32) ≈ 3e-4
+  weight_decay: 0.05        # Higher WD for bigger model (GPT-style)
+  max_epochs: 300
+  warmup_epochs: 30
+  batch_size: 32           # 512 for full dataset, 32 for dev subset (245 tokens)
+  precision: 'bf16-mixed'   # H100 native bf16 Tensor Cores
 
 data:
   token_dir: 'data/tokens/'
-  val_split: 0.2
-  num_workers: 4
+  val_split: 0.1            # More data → less val needed
+  num_workers: 16            # a3-highgpu-1g has 26 vCPUs
+  prefetch_factor: 4         # Pre-load 4 batches per worker

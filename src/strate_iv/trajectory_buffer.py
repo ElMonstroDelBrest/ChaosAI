@@ -6,13 +6,121 @@ The TrajectoryBuffer loads and samples entries for the LatentCryptoEnv.
 
 from __future__ import annotations
 
+import logging
+import math
 import os
 import random
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import torch
 from torch import Tensor
+
+from . import EPS
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Regime classification
+# ---------------------------------------------------------------------------
+
+def classify_regime(ohlcv: Tensor, threshold: float = 1.0) -> str:
+    """Classify an OHLCV window as bull, bear, or range.
+
+    Uses normalized log-return of close prices over the window.
+    The return is normalized by the window's volatility (std of log-returns)
+    so the threshold is in units of sigma.
+
+    Args:
+        ohlcv: (T, 5) OHLCV tensor.
+        threshold: Number of sigmas for bull/bear classification.
+
+    Returns:
+        "bull", "bear", or "range".
+    """
+    close = ohlcv[:, 3]  # close channel
+    if len(close) < 2:
+        return "range"
+
+    # Log-returns
+    log_ret = torch.log(close[1:] / (close[:-1] + EPS) + EPS)
+    cumulative = log_ret.sum().item()
+    sigma = log_ret.std().item() + EPS
+
+    # Normalize by sqrt(T) to get a z-score-like measure
+    z = cumulative / (sigma * math.sqrt(len(log_ret)))
+
+    if z > threshold:
+        return "bull"
+    elif z < -threshold:
+        return "bear"
+    else:
+        return "range"
+
+
+def stratified_sample(
+    n_total: int,
+    n_episodes: int,
+    ohlcv_lookup: Callable[[int], Tensor],
+    threshold: float = 1.0,
+    seed: int = 42,
+) -> list[int]:
+    """Sample indices with balanced regime representation.
+
+    Classifies all sequences, then samples ~equal numbers from each regime.
+    If a regime has fewer sequences, it oversamples to fill its quota.
+
+    Args:
+        n_total: Total number of sequences in dataset.
+        n_episodes: Target number of episodes.
+        ohlcv_lookup: Function idx -> (T, 5) OHLCV tensor.
+        threshold: Z-score threshold for regime classification.
+        seed: Random seed.
+
+    Returns:
+        List of indices with balanced regime representation.
+    """
+    rng = random.Random(seed)
+
+    # Classify all sequences
+    buckets: dict[str, list[int]] = {"bull": [], "bear": [], "range": []}
+    for idx in range(n_total):
+        ohlcv = ohlcv_lookup(idx)
+        regime = classify_regime(ohlcv, threshold=threshold)
+        buckets[regime].append(idx)
+
+    logger.info("Regime distribution (raw %d sequences):", n_total)
+    for regime, indices in buckets.items():
+        logger.info("  %s: %d (%.1f%%)", regime, len(indices),
+                     100 * len(indices) / n_total)
+
+    # Stratified sampling: equal quota per regime
+    per_regime = n_episodes // 3
+    remainder = n_episodes - per_regime * 3
+
+    sampled = []
+    for i, (regime, indices) in enumerate(buckets.items()):
+        quota = per_regime + (1 if i < remainder else 0)
+        if len(indices) == 0:
+            logger.warning("No %s sequences found, skipping", regime)
+            continue
+        if len(indices) >= quota:
+            sampled.extend(rng.sample(indices, quota))
+        else:
+            # Oversample: repeat + sample remainder
+            repeats = quota // len(indices)
+            extra = quota % len(indices)
+            pool = indices * repeats + rng.sample(indices, extra)
+            sampled.extend(pool)
+
+    rng.shuffle(sampled)
+
+    logger.info("Stratified buffer: %d episodes (~%d per regime)",
+                len(sampled), per_regime)
+
+    return sampled
 
 
 @dataclass
@@ -49,10 +157,17 @@ class TrajectoryEntry:
 class TrajectoryBuffer:
     """Loads and samples pre-computed TrajectoryEntry objects from disk."""
 
-    def __init__(self, buffer_dir: str):
+    def __init__(self, buffer_dir: str) -> None:
         self.buffer_dir = Path(buffer_dir)
         self.entries: list[TrajectoryEntry] = []
         self._load()
+
+    @classmethod
+    def from_entries(cls, entries: list[TrajectoryEntry]) -> TrajectoryBuffer:
+        """Create a buffer from an in-memory list of entries (no disk I/O)."""
+        buf = cls.__new__(cls)
+        buf.entries = list(entries)
+        return buf
 
     def _load(self) -> None:
         if not self.buffer_dir.exists():
@@ -95,13 +210,13 @@ class TrajectoryBuffer:
         n_val = max(1, int(len(indices) * val_ratio))
         val_indices = set(indices[:n_val])
 
-        train_buf = TrajectoryBuffer.__new__(TrajectoryBuffer)
-        train_buf.entries = [e for i, e in enumerate(self.entries) if i not in val_indices]
+        train_entries = [e for i, e in enumerate(self.entries) if i not in val_indices]
+        eval_entries = [e for i, e in enumerate(self.entries) if i in val_indices]
 
-        eval_buf = TrajectoryBuffer.__new__(TrajectoryBuffer)
-        eval_buf.entries = [e for i, e in enumerate(self.entries) if i in val_indices]
-
-        return train_buf, eval_buf
+        return (
+            TrajectoryBuffer.from_entries(train_entries),
+            TrajectoryBuffer.from_entries(eval_entries),
+        )
 
 
 class TrajectoryPrecomputer:
@@ -112,7 +227,7 @@ class TrajectoryPrecomputer:
         precomputer.run(token_dataset, ohlcv_dataset, output_dir)
     """
 
-    def __init__(self, generator, jepa, n_futures: int = 16, n_tgt: int = 8):
+    def __init__(self, generator, jepa, n_futures: int = 16, n_tgt: int = 8) -> None:
         self.generator = generator
         self.jepa = jepa
         self.n_futures = n_futures
@@ -181,6 +296,7 @@ class TrajectoryPrecomputer:
         output_dir: str,
         n_episodes: int = 255,
         device: str = "cpu",
+        indices: list[int] | None = None,
     ) -> None:
         """Pre-compute and save trajectory entries.
 
@@ -190,16 +306,19 @@ class TrajectoryPrecomputer:
             output_dir: Directory to save .pt files.
             n_episodes: Number of episodes to generate.
             device: Device to run on.
+            indices: Explicit list of dataset indices to use.
+                     If None, samples randomly.
         """
         out_path = Path(output_dir)
         out_path.mkdir(parents=True, exist_ok=True)
 
-        indices = list(range(len(dataset)))
-        if len(indices) > n_episodes:
-            indices = random.sample(indices, n_episodes)
-        elif len(indices) < n_episodes:
-            indices = indices * (n_episodes // len(indices) + 1)
-            indices = indices[:n_episodes]
+        if indices is None:
+            indices = list(range(len(dataset)))
+            if len(indices) > n_episodes:
+                indices = random.sample(indices, n_episodes)
+            elif len(indices) < n_episodes:
+                indices = indices * (n_episodes // len(indices) + 1)
+                indices = indices[:n_episodes]
 
         for i, idx in enumerate(indices):
             sample = dataset[idx]
@@ -226,4 +345,4 @@ class TrajectoryPrecomputer:
             torch.save(save_dict, out_path / f"episode_{i:05d}.pt")
 
             if (i + 1) % 50 == 0:
-                print(f"  [{i+1}/{n_episodes}] episodes saved")
+                logger.info("[%d/%d] episodes saved", i + 1, n_episodes)

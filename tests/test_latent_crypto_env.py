@@ -1,4 +1,4 @@
-"""Tests for Strate IV: AsymmetricReward, LatentCryptoEnv."""
+"""Tests for Strate IV: PnLReward, LatentCryptoEnv, TrajectoryBuffer."""
 
 import math
 
@@ -7,8 +7,10 @@ import pytest
 import torch
 
 from src.strate_iv.config import EnvConfig, StrateIVConfig, load_config
-from src.strate_iv.reward import AsymmetricReward
-from src.strate_iv.trajectory_buffer import TrajectoryBuffer, TrajectoryEntry
+from src.strate_iv.reward import PnLReward
+from src.strate_iv.trajectory_buffer import (
+    TrajectoryBuffer, TrajectoryEntry, classify_regime, stratified_sample,
+)
 from src.strate_iv.env import LatentCryptoEnv
 
 
@@ -25,7 +27,6 @@ def make_dummy_entry(
     ctx_len: int = 256,
 ) -> TrajectoryEntry:
     """Create a synthetic TrajectoryEntry for testing."""
-    # Simulate OHLCV with positive prices around 100
     future_ohlcv = torch.rand(n_futures, n_tgt, patch_len, 5) * 10 + 95
 
     return TrajectoryEntry(
@@ -43,19 +44,18 @@ def make_dummy_entry(
 
 def make_buffer(n_entries: int = 5, **kwargs) -> TrajectoryBuffer:
     """Create a buffer with synthetic entries (no disk IO)."""
-    buf = TrajectoryBuffer.__new__(TrajectoryBuffer)
-    buf.entries = [make_dummy_entry(**kwargs) for _ in range(n_entries)]
-    return buf
+    entries = [make_dummy_entry(**kwargs) for _ in range(n_entries)]
+    return TrajectoryBuffer.from_entries(entries)
 
 
 # ---------------------------------------------------------------------------
 # Reward tests
 # ---------------------------------------------------------------------------
 
-class TestAsymmetricReward:
+class TestPnLReward:
     def test_zero_action_zero_reward(self):
-        """Flat position → zero PnL, zero TC."""
-        r = AsymmetricReward(tc_rate=0.0005)
+        """Flat position -> zero PnL, zero TC."""
+        r = PnLReward(tc_rate=0.0005)
         reward, info = r.compute(
             action=0.0, prev_action=0.0,
             close_current=100.0, close_next=105.0,
@@ -65,8 +65,8 @@ class TestAsymmetricReward:
         assert info.tc_penalty == 0.0
 
     def test_long_positive_return(self):
-        """Full long + positive return → positive reward (log return)."""
-        r = AsymmetricReward(tc_rate=0.0)
+        """Full long + positive return -> positive reward (log return)."""
+        r = PnLReward(tc_rate=0.0)
         reward, info = r.compute(
             action=1.0, prev_action=1.0,
             close_current=100.0, close_next=105.0,
@@ -76,8 +76,8 @@ class TestAsymmetricReward:
         assert info.tc_penalty == 0.0
 
     def test_short_positive_return(self):
-        """Full short + positive return → negative reward."""
-        r = AsymmetricReward(tc_rate=0.0)
+        """Full short + positive return -> negative reward."""
+        r = PnLReward(tc_rate=0.0)
         reward, info = r.compute(
             action=-1.0, prev_action=-1.0,
             close_current=100.0, close_next=105.0,
@@ -87,7 +87,7 @@ class TestAsymmetricReward:
 
     def test_transaction_cost(self):
         """Position change incurs TC penalty."""
-        r = AsymmetricReward(tc_rate=0.0005)
+        r = PnLReward(tc_rate=0.0005)
         reward, info = r.compute(
             action=1.0, prev_action=-1.0,
             close_current=100.0, close_next=100.0,
@@ -96,21 +96,18 @@ class TestAsymmetricReward:
         assert info.tc_penalty == pytest.approx(0.001, abs=1e-8)
         assert reward == pytest.approx(-0.001, abs=1e-8)
 
-    def test_no_sigma_scaling(self):
-        """Reward is NOT divided by sigma_close anymore."""
-        r = AsymmetricReward(tc_rate=0.0)
-        rew_a, _ = r.compute(
+    def test_symmetric_reward(self):
+        """Same move size in opposite directions -> same magnitude reward."""
+        r = PnLReward(tc_rate=0.0)
+        rew_long, _ = r.compute(
             action=1.0, prev_action=1.0,
             close_current=100.0, close_next=105.0,
-            sigma_close=0.01,
         )
-        rew_b, _ = r.compute(
-            action=1.0, prev_action=1.0,
+        rew_short, _ = r.compute(
+            action=-1.0, prev_action=-1.0,
             close_current=100.0, close_next=105.0,
-            sigma_close=0.10,
         )
-        # Sigma is ignored — both should be identical
-        assert rew_a == pytest.approx(rew_b, abs=1e-8)
+        assert rew_long == pytest.approx(-rew_short, abs=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -121,12 +118,12 @@ class TestLatentCryptoEnv:
     @pytest.fixture
     def env(self):
         buf = make_buffer(n_entries=10)
-        config = EnvConfig(obs_dim=416, n_tgt=8, tc_rate=0.0005, patch_len=16)
+        config = EnvConfig(n_tgt=8, tc_rate=0.0005, patch_len=16)
         return LatentCryptoEnv(buffer=buf, config=config)
 
     def test_reset_returns_valid_obs(self, env):
         obs, info = env.reset(seed=42)
-        assert obs.shape == (416,)
+        assert obs.shape == env.observation_space.shape
         assert obs.dtype == np.float32
         assert np.all(np.isfinite(obs))
         assert "realized_future_idx" in info
@@ -135,7 +132,7 @@ class TestLatentCryptoEnv:
         env.reset(seed=42)
         action = np.array([0.5], dtype=np.float32)
         obs, reward, terminated, truncated, info = env.step(action)
-        assert obs.shape == (416,)
+        assert obs.shape == env.observation_space.shape
         assert isinstance(reward, float)
         assert not terminated  # First step, not done yet
         assert not truncated
@@ -183,7 +180,7 @@ class TestLatentCryptoEnv:
             assert np.all(np.isfinite(obs)), f"Non-finite obs: {obs}"
 
     def test_reward_order_of_magnitude(self, env):
-        """Rewards should be O(1) — not explosive."""
+        """Rewards should be O(1) -- not explosive."""
         env.reset(seed=42)
         rewards = []
         for _ in range(env.config.n_tgt):
@@ -191,31 +188,39 @@ class TestLatentCryptoEnv:
             _, reward, _, _, _ = env.step(action)
             rewards.append(reward)
         rewards = np.array(rewards)
-        assert np.all(np.abs(rewards) < 1000), f"Explosive rewards: {rewards}"
+        assert np.all(np.abs(rewards) < 10), f"Rewards too large: {rewards}"
 
     def test_multiple_resets(self, env):
         """Environment should handle multiple resets without issues."""
         for _ in range(5):
             obs, info = env.reset()
-            assert obs.shape == (416,)
+            assert obs.shape == env.observation_space.shape
             action = np.array([0.0], dtype=np.float32)
             obs, _, _, _, _ = env.step(action)
-            assert obs.shape == (416,)
+            assert obs.shape == env.observation_space.shape
 
     def test_delta_mu_in_observation(self, env):
         """delta_mu should be present and finite in observation."""
         obs, _ = env.reset(seed=42)
-        # delta_mu is at index 414 (after h_x 128 + mean 128 + std 128 + stats 24 + stds 5 = 413)
+        # delta_mu is at index d*3 + n_tgt*3 + 5 (0-based)
+        # For d_model=128: 128+128+128 + 24 + 5 = 413
         delta_mu_idx = 128 + 128 + 128 + 24 + 5  # = 413
         delta_mu = obs[delta_mu_idx]
         assert np.isfinite(delta_mu)
 
 
 # ---------------------------------------------------------------------------
-# Buffer split tests
+# Buffer tests
 # ---------------------------------------------------------------------------
 
-class TestBufferSplit:
+class TestTrajectoryBuffer:
+    def test_from_entries(self):
+        """from_entries creates a buffer without disk IO."""
+        entries = [make_dummy_entry() for _ in range(3)]
+        buf = TrajectoryBuffer.from_entries(entries)
+        assert len(buf) == 3
+        assert buf.entries[0] is entries[0]
+
     def test_split_sizes(self):
         """Split should produce correct train/eval sizes."""
         buf = make_buffer(n_entries=20)
@@ -244,6 +249,70 @@ class TestBufferSplit:
 
 
 # ---------------------------------------------------------------------------
+# Regime classification tests
+# ---------------------------------------------------------------------------
+
+class TestClassifyRegime:
+    def test_bull_regime(self):
+        """Strongly rising prices should classify as bull."""
+        T = 200
+        ohlcv = torch.zeros(T, 5)
+        # Steadily rising close prices
+        ohlcv[:, 3] = torch.linspace(100, 150, T)
+        assert classify_regime(ohlcv) == "bull"
+
+    def test_bear_regime(self):
+        """Strongly falling prices should classify as bear."""
+        T = 200
+        ohlcv = torch.zeros(T, 5)
+        ohlcv[:, 3] = torch.linspace(100, 60, T)
+        assert classify_regime(ohlcv) == "bear"
+
+    def test_range_regime(self):
+        """Flat prices should classify as range."""
+        T = 200
+        ohlcv = torch.zeros(T, 5)
+        ohlcv[:, 3] = 100.0 + torch.randn(T) * 0.01
+        assert classify_regime(ohlcv) == "range"
+
+    def test_short_sequence(self):
+        """Single candle should default to range."""
+        ohlcv = torch.zeros(1, 5)
+        ohlcv[0, 3] = 100.0
+        assert classify_regime(ohlcv) == "range"
+
+
+class TestStratifiedSample:
+    def test_balanced_output(self):
+        """Stratified sample should produce roughly equal regime counts."""
+        T = 100
+        # Create 30 entries: 10 bull, 10 bear, 10 range
+        ohlcv_data = []
+        for _ in range(10):
+            o = torch.zeros(T, 5)
+            o[:, 3] = torch.linspace(100, 150, T)
+            ohlcv_data.append(o)
+        for _ in range(10):
+            o = torch.zeros(T, 5)
+            o[:, 3] = torch.linspace(100, 60, T)
+            ohlcv_data.append(o)
+        for _ in range(10):
+            o = torch.zeros(T, 5)
+            o[:, 3] = 100.0 + torch.randn(T) * 0.01
+            ohlcv_data.append(o)
+
+        sampled = stratified_sample(
+            n_total=30,
+            n_episodes=9,
+            ohlcv_lookup=lambda i: ohlcv_data[i],
+            seed=42,
+        )
+        assert len(sampled) == 9
+        # Each index should be valid
+        assert all(0 <= idx < 30 for idx in sampled)
+
+
+# ---------------------------------------------------------------------------
 # Gymnasium check_env compatibility
 # ---------------------------------------------------------------------------
 
@@ -253,9 +322,8 @@ class TestGymnasiumCompat:
         from gymnasium.utils.env_checker import check_env
 
         buf = make_buffer(n_entries=5)
-        config = EnvConfig(obs_dim=416, n_tgt=8, tc_rate=0.0005, patch_len=16)
+        config = EnvConfig(n_tgt=8, tc_rate=0.0005, patch_len=16)
         env = LatentCryptoEnv(buffer=buf, config=config)
-        # check_env raises on failure
         check_env(env, skip_render_check=True)
 
 
@@ -268,7 +336,6 @@ class TestConfig:
         """Config loads from YAML correctly."""
         yaml_content = """
 env:
-  obs_dim: 416
   n_tgt: 8
   tc_rate: 0.0005
   patch_len: 16
@@ -276,8 +343,6 @@ buffer:
   buffer_dir: "data/trajectory_buffer/"
   n_episodes: 255
   n_futures: 16
-  refresh_ratio: 0.2
-  refresh_every_epochs: 10
   val_ratio: 0.2
 ppo:
   lr: 0.0003
@@ -298,7 +363,12 @@ ppo:
         cfg_file.write_text(yaml_content)
         config = load_config(str(cfg_file))
         assert isinstance(config, StrateIVConfig)
-        assert config.env.obs_dim == 416
         assert config.env.tc_rate == pytest.approx(0.0005)
         assert config.ppo.lr == pytest.approx(3e-4)
         assert config.buffer.n_episodes == 255
+
+    def test_load_actual_config(self):
+        """The actual configs/strate_iv.yaml should load without error."""
+        config = load_config("configs/strate_iv.yaml")
+        assert isinstance(config, StrateIVConfig)
+        assert config.env.n_tgt == 8

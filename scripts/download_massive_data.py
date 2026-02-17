@@ -200,8 +200,8 @@ async def download_pair_klines(
         if pbar:
             pbar.update(len(data))
 
-        # Small delay to be nice to the API
-        await asyncio.sleep(0.05)
+        # Delay between pagination requests to avoid 429s
+        await asyncio.sleep(0.5)
 
         # If we got fewer than limit, we're done
         if len(data) < MAX_KLINES_PER_REQUEST:

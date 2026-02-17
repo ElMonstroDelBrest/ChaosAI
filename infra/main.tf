@@ -4,7 +4,7 @@
 # Resources:
 #   1. GCS Datalake Bucket (Standard, us-central1)
 #   2. Data Ingest VM (e2-standard-4, preemptible)
-#   3. GPU Training VM (A100 Spot, Deep Learning VM image)
+#   3. GPU Training VM (H100 Spot, Deep Learning VM image)
 #   4. Service Account with minimal permissions
 #   5. Firewall rules for SSH
 #
@@ -142,7 +142,7 @@ resource "google_compute_instance" "ingest" {
 }
 
 # ---------------------------------------------------------------------------
-# 3. GPU Training VM (A100 Spot, Deep Learning VM)
+# 3. GPU Training VM (H100 Spot by default, or N1+T4 via variables)
 # ---------------------------------------------------------------------------
 
 resource "google_compute_instance" "training" {
@@ -151,27 +151,30 @@ resource "google_compute_instance" "training" {
   zone         = var.zone
 
   scheduling {
-    provisioning_model = "SPOT"
-    preemptible        = true
-    automatic_restart  = false
-    # Spot VMs: instance_termination_action defaults to STOP
+    provisioning_model  = "SPOT"
+    preemptible         = true
+    automatic_restart   = false
+    on_host_maintenance = "TERMINATE" # Required for GPU instances
   }
 
   boot_disk {
     initialize_params {
       # Google Deep Learning VM with PyTorch + CUDA pre-installed
-      image = "projects/deeplearning-platform-release/global/images/family/pytorch-latest-gpu"
+      image = "projects/deeplearning-platform-release/global/images/family/pytorch-2-7-cu128-ubuntu-2404-nvidia-570"
       size  = 200 # GB for datasets + checkpoints
       type  = "pd-ssd"
     }
   }
 
-  # A2 machine types have GPUs built-in (no guest_accelerator needed)
-  # If using N1 + attached GPU, uncomment below:
-  # guest_accelerator {
-  #   type  = var.training_gpu_type
-  #   count = 1
-  # }
+  # Attached GPU: only for N1/custom VMs (gpu_count > 0)
+  # A2/A3 machine types have GPUs built-in (set gpu_count = 0)
+  dynamic "guest_accelerator" {
+    for_each = var.training_gpu_count > 0 ? [1] : []
+    content {
+      type  = var.training_gpu_type
+      count = var.training_gpu_count
+    }
+  }
 
   network_interface {
     network = "default"

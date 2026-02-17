@@ -1,11 +1,11 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-ia"
 version = "0.1.0"
-description = "Financial IA - Topological Tokenizer (Strate I)"
+description = "Financial IA - Latent Market Intelligence (Strates I-IV)"
 requires-python = ">=3.11"
 dependencies = [
     "torch>=2.0",
@@ -19,6 +19,7 @@ dependencies = [
     "einops",
     "gymnasium>=1.0",
     "stable-baselines3>=2.0",
+    "matplotlib>=3.5",
 ]
 
 [project.optional-dependencies]

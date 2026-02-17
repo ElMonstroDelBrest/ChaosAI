@@ -1,26 +1,26 @@
+# Strate IV — Latent Regime RL configuration
+# obs_dim is auto-detected from buffer (3*d_model + n_tgt*3 + 5 + 3)
+
 env:
-  obs_dim: 416
-  n_tgt: 8
-  tc_rate: 0.0005
-  patch_len: 16
+  n_tgt: 8              # episode length in patches (8 × 16h = 128h ≈ 5.3 days)
+  tc_rate: 0.0005       # transaction cost per unit position change (5 bps)
+  patch_len: 16          # candles per patch (must match Strate I/II tokenizer)
 
 buffer:
   buffer_dir: "data/trajectory_buffer/"
-  n_episodes: 255
-  n_futures: 16
-  refresh_ratio: 0.2
-  refresh_every_epochs: 10
-  val_ratio: 0.2
+  n_episodes: 255        # target pre-computed episodes
+  n_futures: 16          # N future trajectories per episode
+  val_ratio: 0.2         # fraction held out for evaluation
 
 ppo:
   lr: 3.0e-4
-  n_steps: 2048
+  n_steps: 2048          # rollout length per update
   batch_size: 64
-  n_epochs: 10
+  n_epochs: 10           # SGD passes per PPO update
   gamma: 0.99
   gae_lambda: 0.95
   clip_range: 0.2
-  ent_coef: 0.01
+  ent_coef: 0.01         # entropy bonus
   vf_coef: 0.5
   max_grad_norm: 0.5
   total_timesteps: 1000000

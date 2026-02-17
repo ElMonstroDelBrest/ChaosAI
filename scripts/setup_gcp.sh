@@ -20,6 +20,9 @@
 
 set -euo pipefail
 
+# Ensure ~/.local/bin is in PATH (for user-installed terraform)
+export PATH="$HOME/.local/bin:$PATH"
+
 # ---------------------------------------------------------------------------
 # Arguments
 # ---------------------------------------------------------------------------

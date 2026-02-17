@@ -17,7 +17,7 @@ import numpy as np
 import torch
 
 
-def smoke_test(total_timesteps: int = 1000):
+def smoke_test(total_timesteps: int = 1000) -> None:
     """Smoke test: train PPO on synthetic buffer for a few steps."""
     from src.strate_iv.config import EnvConfig
     from src.strate_iv.trajectory_buffer import TrajectoryBuffer, TrajectoryEntry
@@ -29,8 +29,7 @@ def smoke_test(total_timesteps: int = 1000):
     n_entries = 20
     n_futures, n_tgt, patch_len, d_model = 4, 8, 16, 128
 
-    buf = TrajectoryBuffer.__new__(TrajectoryBuffer)
-    buf.entries = []
+    entries = []
     for _ in range(n_entries):
         entry = TrajectoryEntry(
             context_tokens=torch.randint(0, 1024, (64,)),
@@ -43,9 +42,10 @@ def smoke_test(total_timesteps: int = 1000):
             last_close=100.0,
             h_x_pooled=torch.randn(d_model),
         )
-        buf.entries.append(entry)
+        entries.append(entry)
 
-    config = EnvConfig(obs_dim=415, n_tgt=8, tc_rate=0.001, patch_len=16)
+    buf = TrajectoryBuffer.from_entries(entries)
+    config = EnvConfig(n_tgt=n_tgt, tc_rate=0.0005, patch_len=patch_len)
     env = LatentCryptoEnv(buffer=buf, config=config)
 
     # Quick manual rollout test
@@ -85,7 +85,7 @@ def smoke_test(total_timesteps: int = 1000):
 
         print(f"  Training PPO for {total_timesteps} steps...")
         model.learn(total_timesteps=total_timesteps)
-        print(f"  Training complete.")
+        print("  Training complete.")
 
         # Evaluate
         obs, _ = env.reset()
@@ -106,7 +106,7 @@ def smoke_test(total_timesteps: int = 1000):
     print("=== Smoke test passed ===")
 
 
-def train(args):
+def train(args: argparse.Namespace) -> None:
     """Full PPO training from pre-computed buffer."""
     from src.strate_iv.config import load_config
     from src.strate_iv.trajectory_buffer import TrajectoryBuffer
@@ -130,11 +130,20 @@ def train(args):
     )
     print(f"  Train: {len(train_buffer)} episodes, Eval: {len(eval_buffer)} episodes")
 
-    train_env = LatentCryptoEnv(buffer=train_buffer, config=config.env)
-    eval_env = LatentCryptoEnv(buffer=eval_buffer, config=config.env)
-
     from stable_baselines3 import PPO
-    from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, CallbackList
+    from stable_baselines3.common.callbacks import (
+        BaseCallback, CallbackList, CheckpointCallback, EvalCallback,
+    )
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+
+    # Wrap environments with VecNormalize for observation normalization
+    # Critical: JEPA latents have norms of ~50M, MLP policy can't learn without normalization
+    train_env = DummyVecEnv([lambda: LatentCryptoEnv(buffer=train_buffer, config=config.env)])
+    train_env = VecNormalize(train_env, norm_obs=True, norm_reward=True, clip_obs=10.0, clip_reward=10.0)
+
+    eval_env = DummyVecEnv([lambda: LatentCryptoEnv(buffer=eval_buffer, config=config.env)])
+    eval_env = VecNormalize(eval_env, norm_obs=True, norm_reward=False, clip_obs=10.0,
+                            training=False)
 
     log_dir = Path(config.ppo.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -143,30 +152,45 @@ def train(args):
     best_model_dir = log_dir / "best_model"
     best_model_dir.mkdir(parents=True, exist_ok=True)
 
-    model = PPO(
-        "MlpPolicy", train_env,
-        learning_rate=config.ppo.lr,
-        n_steps=config.ppo.n_steps,
-        batch_size=config.ppo.batch_size,
-        n_epochs=config.ppo.n_epochs,
-        gamma=config.ppo.gamma,
-        gae_lambda=config.ppo.gae_lambda,
-        clip_range=config.ppo.clip_range,
-        ent_coef=config.ppo.ent_coef,
-        vf_coef=config.ppo.vf_coef,
-        max_grad_norm=config.ppo.max_grad_norm,
-        verbose=1,
-        tensorboard_log=str(log_dir),
-    )
+    # Auto-resume: check for existing model + VecNormalize stats
+    last_model_path = checkpoint_dir / "ppo_strate_iv_last.zip"
+    vecnorm_path = checkpoint_dir / "vecnormalize.pkl"
+    resuming = last_model_path.exists() and not args.no_resume
+
+    if resuming:
+        print(f"Auto-resuming from {last_model_path}")
+        if vecnorm_path.exists():
+            train_env = VecNormalize.load(str(vecnorm_path), train_env.venv)
+            print(f"  Loaded VecNormalize stats from {vecnorm_path}")
+        model = PPO.load(str(last_model_path), env=train_env,
+                         tensorboard_log=str(log_dir))
+    else:
+        model = PPO(
+            "MlpPolicy", train_env,
+            learning_rate=config.ppo.lr,
+            n_steps=config.ppo.n_steps,
+            batch_size=config.ppo.batch_size,
+            n_epochs=config.ppo.n_epochs,
+            gamma=config.ppo.gamma,
+            gae_lambda=config.ppo.gae_lambda,
+            clip_range=config.ppo.clip_range,
+            ent_coef=config.ppo.ent_coef,
+            vf_coef=config.ppo.vf_coef,
+            max_grad_norm=config.ppo.max_grad_norm,
+            verbose=1,
+            tensorboard_log=str(log_dir),
+        )
+
+    # Sync eval env normalization stats from training env
+    eval_env.obs_rms = train_env.obs_rms
+    eval_env.ret_rms = train_env.ret_rms
 
     checkpoint_callback = CheckpointCallback(
-        save_freq=10_000,
+        save_freq=5_000,
         save_path=str(checkpoint_dir),
         name_prefix="ppo_strate_iv",
     )
 
-    # Eval callback: test on held-out episodes every eval_freq steps.
-    # If train reward rises but eval reward stagnates → overfitting the buffer.
     eval_callback = EvalCallback(
         eval_env,
         best_model_save_path=str(best_model_dir),
@@ -177,23 +201,48 @@ def train(args):
         verbose=1,
     )
 
-    callbacks = CallbackList([checkpoint_callback, eval_callback])
+    class VecNormalizeSyncCallback(BaseCallback):
+        """Sync VecNormalize stats to eval env and save periodically."""
 
-    print(f"Training PPO for {config.ppo.total_timesteps} timesteps...")
+        def __init__(self) -> None:
+            super().__init__()
+
+        def _on_step(self) -> bool:
+            eval_env.obs_rms = train_env.obs_rms
+            eval_env.ret_rms = train_env.ret_rms
+            return True
+
+        def _on_rollout_end(self) -> None:
+            train_env.save(str(vecnorm_path))
+
+    sync_callback = VecNormalizeSyncCallback()
+    callbacks = CallbackList([checkpoint_callback, eval_callback, sync_callback])
+
+    total_timesteps = config.ppo.total_timesteps
+    if args.total_timesteps is not None:
+        total_timesteps = args.total_timesteps
+
+    print(f"Training PPO for {total_timesteps} timesteps...")
     print(f"  Eval every {config.ppo.eval_freq} steps on {len(eval_buffer)} held-out episodes")
+    print(f"  Observation normalization: ON (VecNormalize)")
     model.learn(
-        total_timesteps=config.ppo.total_timesteps,
+        total_timesteps=total_timesteps,
         callback=callbacks,
+        reset_num_timesteps=not resuming,
     )
 
-    # Save final model
+    # Save final + last model + VecNormalize stats
     final_path = log_dir / "ppo_strate_iv_final"
     model.save(str(final_path))
+    model.save(str(last_model_path))
+    train_env.save(str(vecnorm_path))
     print(f"Final model saved to {final_path}")
+    print(f"Last model saved to {last_model_path}")
+    print(f"VecNormalize stats saved to {vecnorm_path}")
     print(f"Best model (by eval reward) saved to {best_model_dir}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Train Strate IV PPO agent")
     parser.add_argument("--smoke_test", action="store_true",
                         help="Run smoke test with synthetic data")
@@ -202,6 +251,8 @@ def main():
                         help="Override buffer dir from config")
     parser.add_argument("--total_timesteps", type=int, default=None,
                         help="Override total_timesteps from config")
+    parser.add_argument("--no_resume", action="store_true",
+                        help="Force fresh start, ignore existing checkpoints")
 
     args = parser.parse_args()
 

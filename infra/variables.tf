@@ -34,13 +34,19 @@ variable "ingest_machine_type" {
 variable "training_machine_type" {
   description = "Machine type for GPU training VM"
   type        = string
-  default     = "a2-highgpu-1g" # 1x A100 40GB
+  default     = "a3-highgpu-1g" # 1× H100 80GB, 26 vCPUs, 234 GB RAM
 }
 
 variable "training_gpu_type" {
-  description = "GPU type for training VM (only for N1/custom VMs)"
+  description = "GPU type (only for N1 VMs with attached GPU, ignored for A2/A3)"
   type        = string
-  default     = "nvidia-tesla-a100"
+  default     = "nvidia-tesla-t4"
+}
+
+variable "training_gpu_count" {
+  description = "Number of attached GPUs (0 for built-in GPU types like A2/A3)"
+  type        = number
+  default     = 0 # a3-highgpu-1g has built-in H100
 }
 
 variable "ssh_user" {

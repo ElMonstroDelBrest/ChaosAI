@@ -1,18 +1,20 @@
 """LatentCryptoEnv: Gymnasium environment for Strate IV RL training.
 
-The agent observes a 416-dim vector composed of:
-  - h_x_pooled (128): JEPA context encoder mean-pool
-  - future_latent_mean (128): Mean of N future latents across N samples
-  - future_latent_std (128): Std of N future latents across N samples
-  - future_close_stats (24): Per-target close return stats (8 targets * 3: mean/std/skew)
+The agent observes a vector composed of:
+  - h_x_pooled (d_model): JEPA context encoder mean-pool
+  - future_latent_mean (d_model): Mean of N future latents across N samples
+  - future_latent_std (d_model): Std of N future latents across N samples
+  - future_close_stats (N_tgt * 3): Per-target close return stats (mean/std/skew)
   - revin_stds (5): RevIN std per channel (volatility regime)
   - delta_mu (1): Macro trend — normalized mu variation between last context patches
   - position (1): Current portfolio position a_{t-1}
   - cumulative_pnl (1): Running PnL
 
+Observation dim = 3 * d_model + N_tgt * 3 + 5 + 3  (auto-detected from buffer).
+
 Action: Box([-1], [1]) — continuous position (-1=short, 0=flat, +1=long).
 
-Episode: N_tgt=8 steps. At reset, one future is sampled as "realized" (domain randomization).
+Episode: N_tgt steps. At reset, one future is sampled as "realized" (domain randomization).
 """
 
 from __future__ import annotations
@@ -21,13 +23,19 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from .reward import AsymmetricReward
-from .trajectory_buffer import TrajectoryBuffer, TrajectoryEntry
+from . import EPS
 from .config import EnvConfig
+from .reward import PnLReward
+from .trajectory_buffer import TrajectoryBuffer, TrajectoryEntry
 
 
 class LatentCryptoEnv(gym.Env):
-    """Latent-space crypto trading environment for PPO training."""
+    """Latent-space crypto trading environment for PPO training.
+
+    Args:
+        buffer: Pre-computed trajectory buffer to sample episodes from.
+        config: Environment configuration (n_tgt, tc_rate, patch_len).
+    """
 
     metadata = {"render_modes": []}
 
@@ -35,16 +43,29 @@ class LatentCryptoEnv(gym.Env):
         self,
         buffer: TrajectoryBuffer,
         config: EnvConfig | None = None,
-    ):
+    ) -> None:
         super().__init__()
         self.buffer = buffer
         self.config = config or EnvConfig()
-        self.reward_fn = AsymmetricReward(tc_rate=self.config.tc_rate)
+        self.reward_fn = PnLReward(tc_rate=self.config.tc_rate)
+
+        # Episode state
+        self._entry: TrajectoryEntry | None = None
+        self._realized_idx: int = 0
+        self._step_idx: int = 0
+        self._position: float = 0.0
+        self._cumulative_pnl: float = 0.0
+
+        # Auto-detect obs_dim from a sample entry
+        obs_dim = 3 * 128 + self.config.n_tgt * 3 + 5 + 3  # fallback
+        if len(buffer) > 0:
+            sample_obs = self._build_observation_from(buffer.entries[0])
+            obs_dim = sample_obs.shape[0]
 
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(self.config.obs_dim,),
+            shape=(obs_dim,),
             dtype=np.float32,
         )
         self.action_space = spaces.Box(
@@ -54,14 +75,9 @@ class LatentCryptoEnv(gym.Env):
             dtype=np.float32,
         )
 
-        # Episode state
-        self._entry: TrajectoryEntry | None = None
-        self._realized_idx: int = 0
-        self._step_idx: int = 0
-        self._position: float = 0.0
-        self._cumulative_pnl: float = 0.0
-
-    def reset(self, *, seed=None, options=None):
+    def reset(
+        self, *, seed: int | None = None, options: dict | None = None
+    ) -> tuple[np.ndarray, dict]:
         super().reset(seed=seed)
 
         # Use np_random for deterministic sampling when seeded
@@ -80,7 +96,7 @@ class LatentCryptoEnv(gym.Env):
         info = {"realized_future_idx": self._realized_idx}
         return obs, info
 
-    def step(self, action):
+    def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
         action_val = float(np.clip(action[0], -1.0, 1.0))
 
         # Get close prices for current and next step from realized future
@@ -124,30 +140,45 @@ class LatentCryptoEnv(gym.Env):
         return obs, reward, terminated, truncated, step_info
 
     def _build_observation(self) -> np.ndarray:
-        """Build the 416-dim observation vector."""
-        entry = self._entry
-        future_latents = entry.future_latents.numpy()  # (N, N_tgt, d_model)
-        N, N_tgt, d_model = future_latents.shape
+        """Build the observation vector from current episode state."""
+        return self._build_observation_from(self._entry)
 
-        # 1. h_x_pooled (128)
+    def _build_observation_from(self, entry: TrajectoryEntry) -> np.ndarray:
+        """Build observation vector from a given entry.
+
+        Components (concatenated):
+            h_x_pooled:     (d_model,) — JEPA context representation
+            future_mean:    (d_model,) — mean of N future latents, pooled over N_tgt
+            future_std:     (d_model,) — std of N future latents, pooled over N_tgt
+            close_stats:    (N_tgt * 3,) — per-target [mean, std, skew] of close returns
+            revin_stds:     (5,) — RevIN channel stds (volatility regime signal)
+            delta_mu:       (1,) — macro trend from context
+            position:       (1,) — current portfolio position
+            cumulative_pnl: (1,) — running PnL
+
+        Returns:
+            (obs_dim,) float32 array with NaN/Inf replaced by 0.
+        """
+        future_latents = entry.future_latents.numpy()  # (N, N_tgt, d_model)
+
+        # 1. h_x_pooled (d_model)
         h_x_pooled = entry.h_x_pooled.numpy()  # (d_model,)
 
-        # 2. future_latent_mean (128) — mean across N futures, mean-pool across N_tgt
+        # 2. future_latent_mean — mean across N futures, mean-pool across N_tgt
         future_mean = future_latents.mean(axis=0).mean(axis=0)  # (d_model,)
 
-        # 3. future_latent_std (128) — std across N futures, mean-pool across N_tgt
+        # 3. future_latent_std — std across N futures, mean-pool across N_tgt
         future_std = future_latents.std(axis=0).mean(axis=0)  # (d_model,)
 
-        # 4. future_close_stats (24) — per-target: mean, std, skew of close returns
-        #    future_ohlcv: (N, N_tgt, patch_len, 5)
+        # 4. future_close_stats — per-target: mean, std, skew of close returns
         future_ohlcv = entry.future_ohlcv.numpy()
-        close_stats = self._compute_close_stats(future_ohlcv)  # (24,)
+        close_stats = self._compute_close_stats(future_ohlcv)
 
         # 5. revin_stds (5)
         revin_stds = entry.revin_stds.numpy().flatten()  # (5,)
 
         # 6. delta_mu (1) — macro trend from context OHLCV
-        delta_mu = self._compute_delta_mu(entry)  # (1,)
+        delta_mu = self._compute_delta_mu(entry, self.config.patch_len)
 
         # 7. position (1)
         position = np.array([self._position], dtype=np.float32)
@@ -167,12 +198,16 @@ class LatentCryptoEnv(gym.Env):
         return obs
 
     @staticmethod
-    def _compute_delta_mu(entry: TrajectoryEntry) -> np.ndarray:
+    def _compute_delta_mu(entry: TrajectoryEntry, patch_len: int) -> np.ndarray:
         """Compute macro trend signal from context OHLCV.
 
         Computes the normalized difference between the mean close of the
         last 2 patches vs the previous 2 patches in the context window.
         This gives the agent the "slope" of the global trend.
+
+        Args:
+            entry: Trajectory entry with context_ohlcv.
+            patch_len: Candles per patch (from config).
 
         Returns:
             (1,) array with normalized delta_mu.
@@ -180,7 +215,6 @@ class LatentCryptoEnv(gym.Env):
         context = entry.context_ohlcv.numpy()  # (T, 5)
         close = context[:, 3]  # (T,)
         T = len(close)
-        patch_len = 16
 
         if T < 4 * patch_len:
             return np.zeros(1, dtype=np.float32)
@@ -191,7 +225,7 @@ class LatentCryptoEnv(gym.Env):
         earlier = close[-(4 * patch_len):-(2 * patch_len)].mean()
 
         # Normalize by overall std to keep it O(1)
-        sigma = close.std() + 1e-8
+        sigma = close.std() + EPS
         delta_mu = (recent - earlier) / sigma
 
         return np.array([delta_mu], dtype=np.float32)
@@ -204,7 +238,7 @@ class LatentCryptoEnv(gym.Env):
             future_ohlcv: (N, N_tgt, patch_len, 5)
 
         Returns:
-            (N_tgt * 3,) = (24,) for N_tgt=8: [mean, std, skew] per target.
+            (N_tgt * 3,) array: [mean, std, skew] per target.
         """
         N, N_tgt, patch_len, _ = future_ohlcv.shape
 
@@ -212,18 +246,17 @@ class LatentCryptoEnv(gym.Env):
         close_prices = future_ohlcv[:, :, -1, 3]  # (N, N_tgt)
 
         # Returns: ratio of close at target t vs target t-1
-        eps = 1e-8
         close_shifted = np.concatenate([
             close_prices[:, :1],  # anchor
             close_prices[:, :-1],
         ], axis=1)  # (N, N_tgt)
-        returns = (close_prices - close_shifted) / (np.abs(close_shifted) + eps)
+        returns = (close_prices - close_shifted) / (np.abs(close_shifted) + EPS)
 
         stats = []
         for t in range(N_tgt):
             r = returns[:, t]  # (N,)
             mean = r.mean()
-            std = r.std() + eps
+            std = r.std() + EPS
             skew = ((r - mean) ** 3).mean() / (std ** 3)
             stats.extend([mean, std, skew])
 

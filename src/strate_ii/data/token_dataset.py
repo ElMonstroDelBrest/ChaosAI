@@ -1,10 +1,12 @@
 """Token sequence dataset for Strate II.
 
 Loads pre-tokenized sequences (from pretokenize.py) as {token_indices, weekend_mask}.
+Handles sequences shorter than seq_len via zero-padding.
 """
 
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from pathlib import Path
 
@@ -15,6 +17,9 @@ class TokenSequenceDataset(Dataset):
     Each file is a dict with:
         - token_indices: (S,) int64 token indices
         - weekend_mask: (S,) float32 {0.0, 1.0}
+
+    Sequences shorter than seq_len are zero-padded.
+    Sequences longer than seq_len are truncated.
 
     Args:
         token_dir: Directory containing .pt token files.
@@ -38,9 +43,18 @@ class TokenSequenceDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, Tensor]:
         data = self.sequences[idx]
+        tokens = data["token_indices"]
+        mask = data["weekend_mask"]
+
+        L = len(tokens)
+        if L < self.seq_len:
+            # Zero-pad shorter sequences
+            tokens = F.pad(tokens, (0, self.seq_len - L), value=0)
+            mask = F.pad(mask, (0, self.seq_len - L), value=0.0)
+
         return {
-            "token_indices": data["token_indices"][:self.seq_len],
-            "weekend_mask": data["weekend_mask"][:self.seq_len],
+            "token_indices": tokens[:self.seq_len],
+            "weekend_mask": mask[:self.seq_len],
         }
 
 
