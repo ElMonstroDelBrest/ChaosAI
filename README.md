@@ -40,11 +40,23 @@ PPO agent operating on **latent observations** (not raw prices):
 - **H100-optimized** training: `torch.compile` (max-autotune), BF16, TF32 matmuls
 - End-to-end pipeline from raw Binance 1h data to RL-based trading decisions
 
+### Fig 1 — Latent Regime Switching
+
+The RL agent detects regime changes via JEPA latent representations and adapts its position (long/short). On this 128h window: **+17.2% return vs +8.0% buy-and-hold** (alpha: +9.16%).
+
+![Fig 1 — JEPA Latent Regime Switching](docs/Fig1_JEPA_Latent_Regime_Switching.png)
+
+### Fig 2 — Epistemic Uncertainty Handling
+
+In a high-volatility bearish regime, the agent actively shorts and reduces exposure when uncertainty is high, limiting drawdown compared to passive holding.
+
+![Fig 2 — Epistemic Uncertainty Handling](docs/Fig2_Epistemic_Uncertainty_Handling.png)
+
 ## Quick Start
 
 ```bash
 # Clone and install
-git clone https://github.com/YOUR_USERNAME/Financial_IA.git
+git clone https://github.com/ElMonstroDelBrest/World-IA-Finance.git
 cd Financial_IA
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
