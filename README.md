@@ -1,5 +1,10 @@
 # Financial-IA: Latent Market Intelligence
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ElMonstroDelBrest/World-IA-Finance/blob/main/demo.ipynb)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://python.org/)
+
 **A four-stage deep learning pipeline that tokenizes raw OHLCV market data into discrete latent regimes, learns temporal dynamics via self-supervised prediction, and trains an RL agent to trade directly in latent space.**
 
 ## Architecture
