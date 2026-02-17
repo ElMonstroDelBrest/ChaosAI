@@ -1,0 +1,51 @@
+###############################################################################
+# Strate II — PROTOTYPE config (original, pre-H100 scale-up)
+# Kept as backup. Active config is configs/strate_ii.yaml
+###############################################################################
+mamba2:
+  d_model: 128
+  d_state: 16
+  n_layers: 6
+  n_heads: 2
+  expand_factor: 2
+  conv_kernel: 4
+
+predictor:
+  hidden_dim: 256
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 64
+
+training:
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 32
+  precision: 'bf16-mixed'
+
+data:
+  token_dir: 'data/tokens/'
+  val_split: 0.2
+  num_workers: 4
