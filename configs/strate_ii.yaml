@@ -21,12 +21,18 @@ mamba2:
   n_heads: 8
   expand_factor: 2
   conv_kernel: 4
+  encoder_type: "mamba"          # "mamba" | "transformer" (ablation study)
+  exo_clock: true                # Use exogenous RV+Volume instead of L2 vol_clock
 
 predictor:
   hidden_dim: 1024
   n_layers: 4
   dropout: 0.05
   z_dim: 128
+  cfm_weight: 1.0        # Phase D: CFM loss weight alongside VICReg
+  cfm_n_steps: 2         # Euler steps at inference (OT-CFM → straight paths → 1-2 suffice)
+  cfm_ot: true            # Mini-batch Optimal Transport coupling (Tong et al. 2023)
+  cfm_ot_batch_size: 256  # Sub-batch for Hungarian assignment
 
 masking:
   mask_ratio: 0.5
@@ -55,7 +61,7 @@ training:
   max_epochs: 100
   warmup_epochs: 30
   batch_size: 1024         # v5: 4187 sequences, 1024 = ~4 steps/epoch (saturate H100)
-  precision: 'bf16-mixed'   # H100 native bf16 Tensor Cores
+  precision: 'bf16-mixed'   # H100 native bf16 Tensor Cores (use --fp8 flag for FP8 via TransformerEngine)
 
 data:
   token_dir: 'data/tokens_v5/'

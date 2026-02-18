@@ -1,10 +1,28 @@
-"""Mamba-2 block with selective scan and weekend gating.
+"""Mamba-2 block with selective scan, weekend gating, and volume-clock modulation.
 
 Uses fused CUDA kernels from mamba-ssm when available, falls back to
 pure-PyTorch sequential scan otherwise.
 
 Weekend gating: delta *= (1 - is_weekend)
   When weekend: delta=0 → exp(A*0)=I → h_t = h_{t-1} (state frozen).
+
+Volume-Clock Modulation (Phase B — v6):
+  Δ_t ← softplus(dt_raw_t + vol_proj(vol_clock_t))
+  where vol_clock_t ∈ R is a normalized realized-volatility proxy
+  (L2 distance between consecutive codebook embeddings, z-scored per sequence).
+
+  Theory (Mandelbrot clock): financial time does not flow uniformly.
+  Δ is the SSM's discretization step size. By conditioning it on local
+  volatility, the model adjusts its temporal resolution autonomously:
+    - High vol → vol_proj learns to decrease Δ → finer temporal grain
+      (the SSM "observes a crisis in slow motion")
+    - Low vol  → vol_proj learns to increase Δ → coarser grain
+      (the SSM "fast-forwards" through dead markets)
+  This gives SSM/Mamba a structural advantage over Transformers, which
+  use a fixed absolute positional encoding blind to time distortions.
+
+  vol_proj is zero-initialized so Phase B has no effect on inference
+  with existing checkpoints (backward compatible).
 """
 
 import math
@@ -275,15 +293,38 @@ class Mamba2Block(nn.Module):
         A = torch.arange(1, d_state + 1, dtype=torch.float32).unsqueeze(0).expand(n_heads, -1)
         self.A_log = nn.Parameter(torch.log(A))
 
+        # Volume-clock gate: projects scalar volatility proxy → n_heads delta bias.
+        # Added to dt (pre-softplus) so the network learns sign + magnitude.
+        # Zero-initialized: no effect until trained (backward compatible).
+        self.vol_proj = nn.Linear(1, n_heads, bias=True)
+        nn.init.zeros_(self.vol_proj.weight)
+        nn.init.zeros_(self.vol_proj.bias)
+
+        # Exogenous clock gate (v6-FINAL): projects [RV, Volume] ∈ R² → n_heads delta bias.
+        # Replaces vol_proj when exo_clock data is available (kills L2 feedback loop).
+        # Zero-initialized: backward compatible with existing checkpoints.
+        self.exo_proj = nn.Linear(2, n_heads, bias=True)
+        nn.init.zeros_(self.exo_proj.weight)
+        nn.init.zeros_(self.exo_proj.bias)
+
         # Output projection
         self.out_proj = nn.Linear(self.d_inner, d_model, bias=False)
 
-    def forward(self, x: Tensor, weekend_mask: Tensor | None = None) -> Tensor:
-        """Forward pass with optional weekend gating.
+    def forward(
+        self,
+        x: Tensor,
+        weekend_mask: Tensor | None = None,
+        vol_clock: Tensor | None = None,
+        exo_clock: Tensor | None = None,
+    ) -> Tensor:
+        """Forward pass with optional weekend gating and clock modulation.
 
         Args:
             x: (B, L, d_model) input sequence.
             weekend_mask: (B, L) float {0.0, 1.0} where 1.0 = weekend.
+            vol_clock: (B, L) float endogenous L2 volatility proxy (Phase B fallback).
+            exo_clock: (B, L, 2) float exogenous [RV, Volume] clock signals.
+                When present, takes priority over vol_clock (no L2 feedback loop).
 
         Returns:
             (B, L, d_model) output with residual connection.
@@ -304,6 +345,15 @@ class Mamba2Block(nn.Module):
         C_proj = proj[..., idx:idx + self.n_heads * self.d_state]
         idx += self.n_heads * self.d_state
         dt = proj[..., idx:idx + self.n_heads]
+
+        # Clock Modulation: bias Δ (pre-softplus) to adjust temporal grain.
+        # Exogenous clock (v6-FINAL) takes priority: uses Realized Volatility
+        # and Normalized Volume from raw OHLCV data — no feedback loop.
+        # Endogenous vol_clock (Phase B) is the fallback when exo_clock is absent.
+        if exo_clock is not None:
+            dt = dt + self.exo_proj(exo_clock)  # (B, L, 2) → (B, L, n_heads)
+        elif vol_clock is not None:
+            dt = dt + self.vol_proj(vol_clock.unsqueeze(-1))  # (B, L, n_heads)
 
         # Reshape B, C: (B, L, n_heads * d_state) → (B, L, n_heads, d_state)
         B_proj = B_proj.view(*B_proj.shape[:-1], self.n_heads, self.d_state)

@@ -3,6 +3,12 @@
 Takes discrete token indices from Strate I codebook, embeds them via the
 frozen codebook vectors, projects to d_model, adds positional embeddings,
 and passes through N Mamba-2 blocks.
+
+Volume-Clock (Phase B — v6):
+  The encoder derives a per-token volatility proxy from the L2 distance
+  between consecutive codebook embeddings and passes it to each Mamba-2
+  block as `vol_clock`. This is zero-overhead (the codebook lookup is
+  already done) and requires no external data or pipeline changes.
 """
 
 import torch
@@ -85,11 +91,41 @@ class Mamba2Encoder(nn.Module):
         assert codebook_weights.shape == self.codebook_embed.weight.shape
         self.codebook_embed.weight.data.copy_(codebook_weights)
 
+    @staticmethod
+    def _compute_vol_clock(x_embed: Tensor) -> Tensor:
+        """Compute realized-volatility proxy from codebook embedding transitions.
+
+        vol_clock_t = ||embed_t - embed_{t-1}||_2 (L2 distance between
+        consecutive codebook vectors), z-scored per sequence.
+
+        High values signal regime changes (proxy for local market volatility).
+        Position 0 is assigned the sequence mean (no previous token exists).
+
+        Args:
+            x_embed: (B, S, codebook_dim) raw codebook embeddings (pre-proj).
+
+        Returns:
+            (B, S) float32 z-scored volatility proxy, detached from graph.
+        """
+        with torch.no_grad():
+            # (B, S-1, D) → (B, S-1) L2 distances
+            diffs = x_embed[:, 1:, :] - x_embed[:, :-1, :]
+            dist = diffs.norm(dim=-1)  # (B, S-1)
+
+            # Prepend sequence mean for position 0 (no predecessor)
+            dist0 = torch.cat([dist.mean(dim=1, keepdim=True), dist], dim=1)  # (B, S)
+
+            # Z-score per sequence: zero-mean, unit-variance
+            mu = dist0.mean(dim=1, keepdim=True)
+            sigma = dist0.std(dim=1, keepdim=True).clamp(min=1e-6)
+            return ((dist0 - mu) / sigma).detach()
+
     def forward(
         self,
         token_indices: Tensor,
         weekend_mask: Tensor | None = None,
         block_mask: Tensor | None = None,
+        exo_clock: Tensor | None = None,
     ) -> Tensor:
         """Encode a sequence of token indices.
 
@@ -98,6 +134,9 @@ class Mamba2Encoder(nn.Module):
             weekend_mask: (B, S) float {0.0, 1.0} weekend indicator.
             block_mask: (B, S) bool where True = masked (target) positions.
                 If provided, masked positions get [MASK] embedding.
+            exo_clock: (B, S, 2) float exogenous [RV, Volume] clock signals.
+                When present, the endogenous L2 vol_clock is NOT computed
+                (kills the codebook feedback loop). Falls back to L2 when None.
 
         Returns:
             (B, S, d_model) encoded representations.
@@ -105,8 +144,16 @@ class Mamba2Encoder(nn.Module):
         B, S = token_indices.shape
 
         # Embed tokens: codebook lookup → projection
-        x = self.codebook_embed(token_indices)  # (B, S, codebook_dim)
-        x = self.input_proj(x)  # (B, S, d_model)
+        x_embed = self.codebook_embed(token_indices)  # (B, S, codebook_dim)
+        x = self.input_proj(x_embed)  # (B, S, d_model)
+
+        # Clock signals: exogenous takes priority, L2 is fallback
+        vol_clock = None
+        if exo_clock is None:
+            # Endogenous fallback: L2 distance between consecutive codebook
+            # embeddings, z-scored per sequence. WARNING: creates a feedback
+            # loop if the codebook collapses. Use exo_clock when available.
+            vol_clock = self._compute_vol_clock(x_embed)  # (B, S)
 
         # Replace masked positions with [MASK] embedding
         if block_mask is not None:
@@ -116,8 +163,13 @@ class Mamba2Encoder(nn.Module):
         # Add positional embedding
         x = x + self.pos_embed[:, :S, :]
 
-        # Pass through Mamba-2 stack
+        # Pass through Mamba-2 stack with clock conditioning
         for layer in self.layers:
-            x = layer(x, weekend_mask=weekend_mask)
+            x = layer(
+                x,
+                weekend_mask=weekend_mask,
+                vol_clock=vol_clock,
+                exo_clock=exo_clock,
+            )
 
         return self.norm(x)
