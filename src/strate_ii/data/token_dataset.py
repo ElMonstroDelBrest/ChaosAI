@@ -1,6 +1,7 @@
 """Token sequence dataset for Strate II.
 
-Loads pre-tokenized sequences (from pretokenize.py) as {token_indices, weekend_mask}.
+Loads pre-tokenized sequences (from pretokenize.py) as
+{token_indices, weekend_mask, exo_clock (optional)}.
 Handles sequences shorter than seq_len via zero-padding.
 """
 
@@ -17,6 +18,7 @@ class TokenSequenceDataset(Dataset):
     Each file is a dict with:
         - token_indices: (S,) int64 token indices
         - weekend_mask: (S,) float32 {0.0, 1.0}
+        - exo_clock: (S, 2) float32 [RV, Volume] (optional, v6-FINAL)
 
     Sequences shorter than seq_len are zero-padded.
     Sequences longer than seq_len are truncated.
@@ -45,24 +47,30 @@ class TokenSequenceDataset(Dataset):
         data = self.sequences[idx]
         tokens = data["token_indices"]
         mask = data["weekend_mask"]
+        exo_clock = data.get("exo_clock")  # (S, 2) or None
 
         L = len(tokens)
         if L < self.seq_len:
             # Zero-pad shorter sequences
             tokens = F.pad(tokens, (0, self.seq_len - L), value=0)
             mask = F.pad(mask, (0, self.seq_len - L), value=0.0)
+            if exo_clock is not None:
+                exo_clock = F.pad(exo_clock, (0, 0, 0, self.seq_len - L), value=0.0)
 
-        return {
+        result = {
             "token_indices": tokens[:self.seq_len],
             "weekend_mask": mask[:self.seq_len],
         }
+        if exo_clock is not None:
+            result["exo_clock"] = exo_clock[:self.seq_len]
+        return result
 
 
 class SyntheticTokenDataset(Dataset):
     """Synthetic dataset for development and testing.
 
     Generates random token sequences with realistic weekend patterns
-    (5 trading days + 2 weekend days, repeating).
+    (5 trading days + 2 weekend days, repeating) and synthetic exo_clock.
 
     Args:
         num_sequences: Number of sequences to generate.
@@ -84,6 +92,8 @@ class SyntheticTokenDataset(Dataset):
         # Pre-generate all data
         self.token_indices = torch.randint(0, num_codes, (num_sequences, seq_len))
         self.weekend_masks = self._generate_weekend_masks(num_sequences, seq_len)
+        # Synthetic exo_clock: z-scored random [RV, Volume] for smoke tests
+        self.exo_clocks = torch.randn(num_sequences, seq_len, 2)
 
     @staticmethod
     def _generate_weekend_masks(num_sequences: int, seq_len: int) -> Tensor:
@@ -102,4 +112,5 @@ class SyntheticTokenDataset(Dataset):
         return {
             "token_indices": self.token_indices[idx],
             "weekend_mask": self.weekend_masks[idx],
+            "exo_clock": self.exo_clocks[idx],
         }

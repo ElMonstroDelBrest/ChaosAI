@@ -41,6 +41,37 @@ def compute_patch_volatility(log_ret_patches: torch.Tensor) -> torch.Tensor:
     return vol
 
 
+def compute_exo_clock(patches: torch.Tensor) -> torch.Tensor:
+    """Compute exogenous clock signals (Realized Volatility + Normalized Volume).
+
+    Per-patch RV and Volume, z-scored per asset for zero-mean unit-variance.
+    These replace the endogenous L2 vol_clock in Mamba2Encoder, breaking
+    the codebook feedback loop.
+
+    Args:
+        patches: (N, L, 5) — patches of log-returns (OHLC + volume).
+
+    Returns:
+        (N, 2) float32 — [RV, Volume] per patch, z-scored across the asset.
+    """
+    N = patches.shape[0]
+
+    # Realized Volatility: std of OHLC log-returns per patch
+    ohlc = patches[:, :, :4]  # (N, L, 4)
+    rv = ohlc.reshape(N, -1).std(dim=1)  # (N,)
+
+    # Normalized Volume: mean absolute volume per patch
+    vol = patches[:, :, 4].abs().mean(dim=1)  # (N,)
+
+    # Z-score per asset (entire sequence) — zero-mean, unit-variance
+    def _zscore(x: torch.Tensor) -> torch.Tensor:
+        mu = x.mean()
+        sigma = x.std().clamp(min=1e-6)
+        return (x - mu) / sigma
+
+    return torch.stack([_zscore(rv), _zscore(vol)], dim=-1)  # (N, 2)
+
+
 def compute_apathy_mask(
     volatilities: torch.Tensor, percentile: float = 10.0
 ) -> torch.Tensor:
@@ -122,6 +153,9 @@ def pretokenize(
         volatilities = compute_patch_volatility(patches)  # (N,)
         apathy_mask = compute_apathy_mask(volatilities, apathy_percentile)  # (N,)
 
+        # Compute exogenous clock signals (RV + Volume, z-scored)
+        exo_clock = compute_exo_clock(patches)  # (N, 2)
+
         # Stats
         n_patches = token_indices.shape[0]
         n_apathetic = int(apathy_mask.sum().item())
@@ -143,9 +177,14 @@ def pretokenize(
             end = start + seq_len
             chunk_tokens = token_indices[start:end]
             chunk_mask = apathy_mask[start:end]
+            chunk_exo_clock = exo_clock[start:end]  # (seq_len, 2)
 
             torch.save(
-                {"token_indices": chunk_tokens, "weekend_mask": chunk_mask},
+                {
+                    "token_indices": chunk_tokens,
+                    "weekend_mask": chunk_mask,
+                    "exo_clock": chunk_exo_clock,
+                },
                 output_path / f"{pair_name}_seq{i:04d}.pt",
             )
 

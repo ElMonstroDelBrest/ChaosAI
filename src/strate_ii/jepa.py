@@ -21,9 +21,14 @@ import torch
 from torch import Tensor, nn
 
 from .encoder import Mamba2Encoder
+from .flow_predictor import FlowPredictor
 from .predictor import Predictor
 from .masking import generate_batch_masks
 from .vicreg import VICRegLoss
+
+_ENCODER_REGISTRY: dict[str, type] = {
+    "mamba": Mamba2Encoder,
+}
 
 
 class FinJEPA(nn.Module):
@@ -43,6 +48,10 @@ class FinJEPA(nn.Module):
         pred_n_layers: Predictor MLP depth.
         pred_dropout: Predictor dropout.
         pred_z_dim: Predictor latent noise dimension (0 = deterministic).
+        cfm_weight: Weight of CFM loss relative to VICReg (0.0 = disable CFM).
+        cfm_n_steps: Euler integration steps at inference.
+        encoder_type: Which encoder backbone to use — "mamba" (default) or
+            "transformer" (causal GPT-style, ablation counterpart).
         mask_ratio: JEPA mask ratio.
         block_size_min: Minimum mask block size.
         block_size_max: Maximum mask block size.
@@ -68,6 +77,11 @@ class FinJEPA(nn.Module):
         pred_n_layers: int = 2,
         pred_dropout: float = 0.1,
         pred_z_dim: int = 32,
+        cfm_weight: float = 1.0,
+        cfm_n_steps: int = 2,
+        cfm_ot: bool = True,
+        cfm_ot_batch_size: int = 256,
+        encoder_type: str = "mamba",
         mask_ratio: float = 0.5,
         block_size_min: int = 4,
         block_size_max: int = 8,
@@ -84,9 +98,23 @@ class FinJEPA(nn.Module):
         self.tau = tau
         self.d_model = d_model
         self.codebook_dim = codebook_dim
+        self.cfm_weight = cfm_weight
+        self.cfm_n_steps = cfm_n_steps
+
+        # Resolve encoder class (lazy-import TransformerEncoder to avoid
+        # importing torch transformer ops when using Mamba).
+        if encoder_type == "transformer":
+            from .transformer_encoder import TransformerEncoder
+            _ENCODER_REGISTRY["transformer"] = TransformerEncoder
+        if encoder_type not in _ENCODER_REGISTRY:
+            raise ValueError(
+                f"Unknown encoder_type={encoder_type!r}. "
+                f"Choose from {list(_ENCODER_REGISTRY)}"
+            )
+        enc_cls = _ENCODER_REGISTRY[encoder_type]
 
         # Context encoder E_x (trained via gradient)
-        self.context_encoder = Mamba2Encoder(
+        self.context_encoder = enc_cls(
             num_codes=num_codes,
             codebook_dim=codebook_dim,
             d_model=d_model,
@@ -112,6 +140,20 @@ class FinJEPA(nn.Module):
             dropout=pred_dropout,
             z_dim=pred_z_dim,
         )
+
+        # Flow predictor (OT-CFM, Phase D) — None when cfm_weight == 0 to save memory
+        if cfm_weight > 0.0:
+            self.flow_predictor: FlowPredictor | None = FlowPredictor(
+                d_model=d_model,
+                hidden_dim=pred_hidden_dim,
+                n_layers=pred_n_layers,
+                seq_len=seq_len,
+                dropout=pred_dropout,
+                ot=cfm_ot,
+                ot_batch_size=cfm_ot_batch_size,
+            )
+        else:
+            self.flow_predictor = None
 
         # VICReg loss
         self.vicreg = VICRegLoss(
@@ -177,6 +219,7 @@ class FinJEPA(nn.Module):
         weekend_mask: Tensor | None,
         target_positions: Tensor,
         n_samples: int = 16,
+        exo_clock: Tensor | None = None,
     ) -> Tensor:
         """Generate N stochastic future trajectories in latent space.
 
@@ -185,6 +228,7 @@ class FinJEPA(nn.Module):
             weekend_mask: (B, S) apathy mask (or None).
             target_positions: (B, N_tgt) positions to predict.
             n_samples: Number of divergent futures to generate.
+            exo_clock: (B, S, 2) exogenous [RV, Volume] clock (or None).
 
         Returns:
             (N, B, N_tgt, d_model) — N latent trajectories.
@@ -193,13 +237,24 @@ class FinJEPA(nn.Module):
         N_tgt = target_positions.shape[1]
         device = token_indices.device
 
-        h_x = self.context_encoder(token_indices, weekend_mask=weekend_mask)
+        h_x = self.context_encoder(
+            token_indices, weekend_mask=weekend_mask, exo_clock=exo_clock
+        )
 
         futures = []
-        for _ in range(n_samples):
-            z = torch.randn(B, N_tgt, self.predictor.z_dim, device=device)
-            h_pred = self.predictor(h_x, target_positions, z=z)
-            futures.append(h_pred)
+        if self.flow_predictor is not None:
+            # CFM: each sample() call starts from a different x_0 ~ N(0, I)
+            for _ in range(n_samples):
+                h_pred = self.flow_predictor.sample(
+                    h_x, target_positions, n_steps=self.cfm_n_steps
+                )
+                futures.append(h_pred)
+        else:
+            # Fallback: original Gaussian noise injection
+            for _ in range(n_samples):
+                z = torch.randn(B, N_tgt, self.predictor.z_dim, device=device)
+                h_pred = self.predictor(h_x, target_positions, z=z)
+                futures.append(h_pred)
 
         return torch.stack(futures)  # (N, B, N_tgt, d_model)
 
@@ -207,12 +262,14 @@ class FinJEPA(nn.Module):
         self,
         token_indices: Tensor,
         weekend_mask: Tensor | None = None,
+        exo_clock: Tensor | None = None,
     ) -> dict[str, Tensor]:
         """Forward pass: mask → encode → predict (with z noise) → VICReg loss.
 
         Args:
             token_indices: (B, S) int64 token indices.
             weekend_mask: (B, S) float {0.0, 1.0} weekend indicator.
+            exo_clock: (B, S, 2) float exogenous [RV, Volume] clock (or None).
 
         Returns:
             dict with loss components and diagnostics.
@@ -234,6 +291,7 @@ class FinJEPA(nn.Module):
             token_indices,
             weekend_mask=weekend_mask,
             block_mask=block_mask,
+            exo_clock=exo_clock,
         )  # (B, S, d_model)
 
         # 3. Target encoder: sees full sequence WITHOUT masking (no grad)
@@ -242,6 +300,7 @@ class FinJEPA(nn.Module):
                 token_indices,
                 weekend_mask=weekend_mask,
                 block_mask=None,  # Target sees everything
+                exo_clock=exo_clock,
             )  # (B, S, d_model)
 
         # 4. Extract target positions for each sample
@@ -278,12 +337,24 @@ class FinJEPA(nn.Module):
 
         # 8. VICReg loss
         loss_dict = self.vicreg(h_pred_flat, h_tgt_flat.detach())
+        total_loss = loss_dict["total"]
+
+        # 9. CFM loss (Phase D) — train v_θ to transport N(0,I) → h_y_tgt
+        cfm_loss = h_y_pred.new_tensor(0.0)
+        if self.flow_predictor is not None and self.cfm_weight > 0.0:
+            v_pred, v_tgt = self.flow_predictor(h_x, target_positions, h_y_tgt.detach())
+            # Mask padding positions before MSE
+            v_pred_flat = v_pred[target_mask]
+            v_tgt_flat = v_tgt[target_mask]
+            cfm_loss = (v_pred_flat - v_tgt_flat).pow(2).mean()
+            total_loss = total_loss + self.cfm_weight * cfm_loss
 
         return {
-            "loss": loss_dict["total"],
+            "loss": total_loss,
             "invariance": loss_dict["invariance"],
             "variance": loss_dict["variance"],
             "covariance": loss_dict["covariance"],
+            "cfm_loss": cfm_loss,
             "mask_ratio": block_mask.float().mean(),
             "n_targets": target_mask.float().sum() / B,
         }

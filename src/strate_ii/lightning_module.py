@@ -40,6 +40,11 @@ class StrateIILightningModule(pl.LightningModule):
             pred_n_layers=config.predictor.n_layers,
             pred_dropout=config.predictor.dropout,
             pred_z_dim=config.predictor.z_dim,
+            cfm_weight=config.predictor.cfm_weight,
+            cfm_n_steps=config.predictor.cfm_n_steps,
+            cfm_ot=config.predictor.cfm_ot,
+            cfm_ot_batch_size=config.predictor.cfm_ot_batch_size,
+            encoder_type=config.mamba2.encoder_type,
             mask_ratio=config.masking.mask_ratio,
             block_size_min=config.masking.block_size_min,
             block_size_max=config.masking.block_size_max,
@@ -66,6 +71,7 @@ class StrateIILightningModule(pl.LightningModule):
         out = self.jepa(
             token_indices=batch["token_indices"],
             weekend_mask=batch["weekend_mask"],
+            exo_clock=batch.get("exo_clock"),
         )
 
         self.log_dict(
@@ -74,6 +80,7 @@ class StrateIILightningModule(pl.LightningModule):
                 f"{prefix}loss/invariance": out["invariance"],
                 f"{prefix}loss/variance": out["variance"],
                 f"{prefix}loss/covariance": out["covariance"],
+                f"{prefix}loss/cfm": out["cfm_loss"],
                 f"{prefix}mask_ratio": out["mask_ratio"],
             },
             on_step=(prefix == ""),
@@ -100,6 +107,8 @@ class StrateIILightningModule(pl.LightningModule):
             {"params": self.jepa.predictor.parameters()},
             {"params": self.jepa.output_proj.parameters()},
         ]
+        if self.jepa.flow_predictor is not None:
+            params.append({"params": self.jepa.flow_predictor.parameters()})
         optimizer = AdamW(
             params,
             lr=self.config.training.lr,

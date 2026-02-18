@@ -13,6 +13,8 @@ class Mamba2Config:
     n_heads: int = 2
     expand_factor: int = 2
     conv_kernel: int = 4
+    encoder_type: str = "mamba"   # "mamba" | "transformer" (ablation)
+    exo_clock: bool = True        # Exogenous RV+Volume clock (kills L2 feedback loop)
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,10 @@ class PredictorConfig:
     n_layers: int = 2
     dropout: float = 0.1
     z_dim: int = 32
+    cfm_weight: float = 1.0       # Weight of CFM loss relative to VICReg (0 = disable CFM)
+    cfm_n_steps: int = 2          # Euler steps at inference (OT-CFM makes paths straight → 1-2 suffice)
+    cfm_ot: bool = True            # Mini-batch Optimal Transport coupling (Tong et al. 2023)
+    cfm_ot_batch_size: int = 256   # Sub-batch size for Hungarian assignment O(n³)
 
 
 @dataclass(frozen=True)

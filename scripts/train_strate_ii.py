@@ -10,6 +10,12 @@ Usage:
     # H100 Production-Scale with torch.compile:
     python scripts/train_strate_ii.py --config configs/strate_ii.yaml --compile
 
+    # FP8 precision (H100 only, requires nvidia-transformer-engine):
+    python scripts/train_strate_ii.py --config configs/strate_ii.yaml --compile --fp8
+
+    # Override token_dir (e.g. local NVMe SSD):
+    python scripts/train_strate_ii.py --config configs/strate_ii.yaml --token_dir /mnt/disks/local-ssd/data/tokens_v5/
+
     # Auto-resume from last checkpoint:
     python scripts/train_strate_ii.py --config configs/strate_ii.yaml
     # (automatically detects and resumes from checkpoints/strate_ii/last.ckpt)
@@ -60,6 +66,18 @@ def main():
         "--no_resume", action="store_true",
         help="Force fresh start, ignore existing checkpoints",
     )
+    parser.add_argument(
+        "--fp8", action="store_true",
+        help="Use FP8 precision via TransformerEngine (H100 only, ~1.5× faster matmuls)",
+    )
+    parser.add_argument(
+        "--token_dir", type=str, default=None,
+        help="Override token_dir from config (e.g. local NVMe SSD path)",
+    )
+    parser.add_argument(
+        "--spot_watcher", action="store_true",
+        help="Enable GCP Spot preemption watcher (polls metadata at 1Hz)",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -67,9 +85,26 @@ def main():
     # Enable TF32 for H100/A100 (free 3× speedup on matmuls)
     torch.set_float32_matmul_precision("high")
 
+    # Override token_dir if specified (e.g. local NVMe SSD)
+    token_dir = args.token_dir or config.data.token_dir
+
+    # FP8 precision setup
+    precision = config.training.precision
+    plugins = []
+    if args.fp8:
+        try:
+            from lightning.pytorch.plugins import TransformerEnginePrecision
+            plugins.append(TransformerEnginePrecision(weights_dtype=torch.bfloat16))
+            precision = None  # TransformerEngine plugin handles precision
+            print("FP8: Using TransformerEngine precision plugin")
+        except ImportError:
+            print("WARNING: --fp8 requested but nvidia-transformer-engine not installed.")
+            print("  Install with: pip install nvidia-transformer-engine")
+            print("  Falling back to bf16-mixed.")
+
     # Data
     datamodule = StrateIIDataModule(
-        token_dir=config.data.token_dir,
+        token_dir=token_dir,
         seq_len=config.embedding.seq_len,
         num_codes=config.embedding.num_codes,
         batch_size=config.training.batch_size,
@@ -129,6 +164,14 @@ def main():
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
 
+    callbacks = [best_cb, last_cb, lr_monitor]
+
+    # Spot preemption watcher (GCP metadata polling)
+    if args.spot_watcher:
+        from infra.spot_watcher import SpotPreemptionCallback
+        callbacks.append(SpotPreemptionCallback())
+        print("Spot preemption watcher enabled")
+
     # Logger
     logger = TensorBoardLogger("tb_logs", name="strate_ii")
 
@@ -147,15 +190,19 @@ def main():
                 print(f"Auto-resuming from {ckpt_path}")
 
     # Trainer
-    trainer = pl.Trainer(
+    trainer_kwargs = dict(
         max_epochs=config.training.max_epochs,
-        precision=config.training.precision,
-        callbacks=[best_cb, last_cb, lr_monitor],
+        callbacks=callbacks,
         logger=logger,
         gradient_clip_val=1.0,
         accumulate_grad_batches=args.accumulate_grad_batches,
         log_every_n_steps=10,
     )
+    if precision is not None:
+        trainer_kwargs["precision"] = precision
+    if plugins:
+        trainer_kwargs["plugins"] = plugins
+    trainer = pl.Trainer(**trainer_kwargs)
 
     trainer.fit(model, datamodule, ckpt_path=ckpt_path)
 
