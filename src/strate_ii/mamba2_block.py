@@ -124,12 +124,16 @@ def selective_scan_fused(
     d_state = A.shape[1]
     head_dim = D_inner // n_heads
 
+    # Fused selective_scan_cuda only supports float32 — upcast everything from bf16
+    input_dtype = x.dtype
+    x = x.float()
+
     # Apply softplus to dt
-    dt = F.softplus(dt)  # (B, L, n_heads)
+    dt = F.softplus(dt).float()  # (B, L, n_heads)
 
     # Weekend gating: zero out delta on weekends
     if weekend_mask is not None:
-        gate = 1.0 - weekend_mask.unsqueeze(-1)  # (B, L, 1)
+        gate = 1.0 - weekend_mask.float().unsqueeze(-1)  # (B, L, 1)
         dt = dt * gate
 
     # Expand dt from (B, L, n_heads) to (B, L, D_inner) by repeating per head
@@ -156,13 +160,13 @@ def selective_scan_fused(
 
     # A: (n_heads, d_state) -> repeat for each batch -> (B*H, head_dim, d_state)
     # selective_scan_fn expects A: (D, N) where D=head_dim
-    A_per_head = A.unsqueeze(1).expand(-1, head_dim, -1)  # (H, hd, N)
+    A_per_head = A.float().unsqueeze(1).expand(-1, head_dim, -1)  # (H, hd, N)
 
     # B: (B, L, H, N) -> (B, H, N, L) -> (B*H, N, L)
-    B_flat = B.permute(0, 2, 3, 1).reshape(B_batch * n_heads, d_state, L)
+    B_flat = B.float().permute(0, 2, 3, 1).reshape(B_batch * n_heads, d_state, L)
 
     # C: (B, L, H, N) -> (B, H, N, L) -> (B*H, N, L)
-    C_flat = C.permute(0, 2, 3, 1).reshape(B_batch * n_heads, d_state, L)
+    C_flat = C.float().permute(0, 2, 3, 1).reshape(B_batch * n_heads, d_state, L)
 
     # Run fused scan for ALL heads in a single kernel call.
     # selective_scan_fn broadcasts A: (D, N) over the batch dimension.
@@ -207,7 +211,7 @@ def selective_scan_fused(
     # Stack heads: (H, B, hd, L) → (B, H, hd, L) → (B, L, D_inner)
     y = torch.stack(outputs, dim=0)  # (H, B, hd, L)
     y = y.permute(1, 3, 0, 2).reshape(B_batch, L, D_inner)
-    return y
+    return y.to(input_dtype)
 
 
 def selective_scan(

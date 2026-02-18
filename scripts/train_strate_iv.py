@@ -183,6 +183,7 @@ def train(args: argparse.Namespace) -> None:
             ent_coef=config.ppo.ent_coef,
             vf_coef=config.ppo.vf_coef,
             max_grad_norm=config.ppo.max_grad_norm,
+            target_kl=getattr(config.ppo, 'target_kl', None),
             verbose=1,
             tensorboard_log=str(log_dir),
             policy_kwargs=dict(

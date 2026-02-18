@@ -79,6 +79,7 @@ class PPOConfig:
     ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
+    target_kl: float | None = None
     total_timesteps: int = 1_000_000
     eval_freq: int = 10_000
     log_dir: str = "tb_logs/strate_iv/"

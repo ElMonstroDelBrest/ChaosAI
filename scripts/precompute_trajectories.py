@@ -134,7 +134,12 @@ def precompute_from_checkpoints(args):
     # Detect z_dim from checkpoint to handle pre-Strate III checkpoints (z_dim=0)
     strate_ii_config = load_strate_ii_config(args.strate_ii_config)
     ckpt_state = torch.load(args.strate_ii_checkpoint, weights_only=False, map_location="cpu")
-    pred_in_dim = ckpt_state["state_dict"]["jepa.predictor.mlp.0.weight"].shape[1]
+    # Handle torch.compile prefix (_orig_mod.) in checkpoint keys
+    sd = ckpt_state["state_dict"]
+    pred_key = "jepa.predictor.mlp.0.weight"
+    if pred_key not in sd:
+        pred_key = "_orig_mod." + pred_key
+    pred_in_dim = sd[pred_key].shape[1]
     ckpt_z_dim = pred_in_dim - strate_ii_config.mamba2.d_model * 2
     if ckpt_z_dim != strate_ii_config.predictor.z_dim:
         print(f"  Checkpoint z_dim={ckpt_z_dim} (config has {strate_ii_config.predictor.z_dim}), overriding")
@@ -279,7 +284,12 @@ def precompute_historical(args):
     # Load Strate II (JEPA encoder only — no generator needed)
     strate_ii_config = load_strate_ii_config(args.strate_ii_config)
     ckpt_state = torch.load(args.strate_ii_checkpoint, weights_only=False, map_location="cpu")
-    pred_in_dim = ckpt_state["state_dict"]["jepa.predictor.mlp.0.weight"].shape[1]
+    # Handle torch.compile prefix (_orig_mod.) in checkpoint keys
+    sd = ckpt_state["state_dict"]
+    pred_key = "jepa.predictor.mlp.0.weight"
+    if pred_key not in sd:
+        pred_key = "_orig_mod." + pred_key
+    pred_in_dim = sd[pred_key].shape[1]
     ckpt_z_dim = pred_in_dim - strate_ii_config.mamba2.d_model * 2
     if ckpt_z_dim != strate_ii_config.predictor.z_dim:
         from dataclasses import replace

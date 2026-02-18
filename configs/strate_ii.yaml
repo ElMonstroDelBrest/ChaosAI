@@ -52,9 +52,9 @@ embedding:
 training:
   lr: 3.0e-4                # Linear scaling: 1e-4 × sqrt(512/32) ≈ 3e-4
   weight_decay: 0.05        # Higher WD for bigger model (GPT-style)
-  max_epochs: 300
+  max_epochs: 100
   warmup_epochs: 30
-  batch_size: 128          # v5: ~3000 sequences, 128 = ~23 steps/epoch
+  batch_size: 1024         # v5: 4187 sequences, 1024 = ~4 steps/epoch (saturate H100)
   precision: 'bf16-mixed'   # H100 native bf16 Tensor Cores
 
 data:

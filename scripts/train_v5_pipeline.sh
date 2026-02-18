@@ -85,11 +85,11 @@ if [ "$START_PHASE" -le 2 ]; then
         2>&1 | tee -a "$LOG"
     log "  Strate I training complete."
 
-    # Find best Strate I checkpoint
-    STRATE_I_CKPT=$(find checkpoints -path '*strate_i*' -name '*.ckpt' ! -name 'last*' \
+    # Find best Strate I checkpoint (named strate-i-epoch=*, NOT in strate_ii/ dir)
+    STRATE_I_CKPT=$(find checkpoints -maxdepth 1 -name 'strate-i-*' -name '*.ckpt' \
         -printf '%f\t%p\n' 2>/dev/null | sort | tail -1 | cut -f2)
     if [ -z "${STRATE_I_CKPT:-}" ]; then
-        STRATE_I_CKPT=$(find checkpoints -path '*strate_i*' -name 'last.ckpt' | head -1)
+        STRATE_I_CKPT=$(find checkpoints -maxdepth 1 -name 'strate-i-*' -name '*.ckpt' | head -1)
     fi
     log "  Best Strate I checkpoint: $STRATE_I_CKPT"
 
@@ -117,10 +117,10 @@ if [ "$START_PHASE" -le 3 ]; then
 fi
 
 # Find best Strate I and II checkpoints (needed for phases 4+)
-STRATE_I_CKPT=$(find checkpoints -path '*strate_i*' -name '*.ckpt' ! -name 'last*' \
+STRATE_I_CKPT=$(find checkpoints -maxdepth 1 -name 'strate-i-*' -name '*.ckpt' \
     -printf '%f\t%p\n' 2>/dev/null | sort | tail -1 | cut -f2)
 if [ -z "${STRATE_I_CKPT:-}" ]; then
-    STRATE_I_CKPT=$(find checkpoints -path '*strate_i*' -name 'last.ckpt' | head -1)
+    STRATE_I_CKPT=$(find checkpoints -maxdepth 1 -name 'strate-i-*' -name '*.ckpt' | head -1)
 fi
 
 STRATE_II_BEST=$(find checkpoints/strate_ii -name '*.ckpt' ! -name 'last*' \

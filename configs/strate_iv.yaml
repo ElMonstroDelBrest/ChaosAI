@@ -1,5 +1,6 @@
-# Strate IV — Latent Regime RL configuration (v5)
+# Strate IV — Latent Regime RL configuration (v5.1)
 # obs_dim is auto-detected from buffer (3*d_model + n_tgt*4 + 5 + 4)
+# v5.1: calmer le PPO — LR /3, batch x2, target_kl, plus de steps
 
 env:
   n_tgt: 8              # episode length in patches (8 x 16h = 128h ~ 5.3 days)
@@ -14,16 +15,17 @@ buffer:
   val_ratio: 0.1         # fraction held out for evaluation
 
 ppo:
-  lr: 1.5e-4             # v5: more conservative for larger policy network
+  lr: 5.0e-5             # v5.1: /3 pour stabiliser (v5 avait approx_kl=0.70)
   n_steps: 512           # per env (x8 envs = 4096 effective steps per rollout)
-  batch_size: 256        # v5: larger minibatch
-  n_epochs: 8            # v5: fewer SGD passes (less overfitting per rollout)
+  batch_size: 512        # v5.1: x2 pour lisser les gradients
+  n_epochs: 4            # v5.1: /2 — moins de passes SGD par rollout = moins de KL drift
   gamma: 0.99
   gae_lambda: 0.95
-  clip_range: 0.2
-  ent_coef: 0.005        # v5: larger network = less entropy bonus needed
+  clip_range: 0.15       # v5.1: clip plus serré (0.2 -> 0.15)
+  ent_coef: 0.01         # v5.1: remonté pour encourager l'exploration
   vf_coef: 0.5
   max_grad_norm: 0.5
-  total_timesteps: 2000000  # v5: 2M (5000 episodes = less overfitting risk)
+  target_kl: 0.03        # v5.1: early stop epoch si KL > 0.03
+  total_timesteps: 3000000  # v5.1: 3M pour laisser le temps de converger doucement
   eval_freq: 20000
-  log_dir: "tb_logs/strate_iv_v5/"
+  log_dir: "tb_logs/strate_iv_v51/"
