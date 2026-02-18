@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import random
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,6 +61,8 @@ MAX_KLINES_PER_REQUEST = 1500
 # Each klines request = weight 5 → max ~480 req/min.
 # Be conservative: 10 concurrent requests, 150ms min between bursts.
 MAX_CONCURRENT = 10
+LIMIT_WEIGHT = 2400          # Binance 1-minute weight budget
+PROACTIVE_THRESHOLD = 0.85   # Throttle proactively at 85% of weight budget
 MIN_HISTORY_DAYS = 180  # 6 months minimum
 
 KLINE_COLUMNS = [
@@ -110,12 +113,30 @@ async def fetch_json(
             try:
                 async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     if resp.status == 200:
+                        # Proactive AIMD throttle: read Binance token-bucket header.
+                        # All workers share the same IP weight budget, so any worker
+                        # that sees >85% triggers a jittered pause to desynchronise
+                        # the "Thundering Herd" before hitting the hard 429 wall.
+                        used_weight = int(resp.headers.get("x-mbx-used-weight-1m", 0))
+                        if used_weight > LIMIT_WEIGHT * PROACTIVE_THRESHOLD:
+                            wait = 5.0 + random.uniform(0.0, 2.0)
+                            log.info(
+                                f"Proactive throttle: {used_weight}/{LIMIT_WEIGHT} weight used. "
+                                f"Pausing {wait:.1f}s"
+                            )
+                            await asyncio.sleep(wait)
                         return await resp.json()
                     elif resp.status in (429, 418):
-                        # Rate limited — back off
-                        retry_after = int(resp.headers.get("Retry-After", 5))
-                        log.warning(f"Rate limited ({resp.status}), waiting {retry_after}s")
-                        await asyncio.sleep(retry_after)
+                        # Hard rate-limit hit — use Retry-After header + random jitter
+                        # to desynchronise workers (avoid Thundering Herd on wake-up).
+                        retry_after = int(resp.headers.get("Retry-After", 60))
+                        jitter = random.uniform(0.1, 0.3) * retry_after
+                        wait_time = retry_after + jitter
+                        log.warning(
+                            f"Rate limited ({resp.status}). "
+                            f"Worker pausing {wait_time:.1f}s (retry-after={retry_after}s + jitter)"
+                        )
+                        await asyncio.sleep(wait_time)
                     elif resp.status == 451:
                         # IP banned region
                         log.error(f"IP banned (451) for {params}")

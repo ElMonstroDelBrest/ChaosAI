@@ -5,6 +5,10 @@ codebook:
   eps: 1.0e-05
   latent_dim: 64
   num_codes: 1024
+  # Phase C — FSQ: [8,8,8,2] → 8×8×8×2 = 1024 codes, 4-dim grid (proj 64→4→64)
+  # Guarantees full codebook utilization — no collapse on fat-tail crypto events.
+  # Set to [] to revert to SphericalCodebook (VQ-VAE).
+  fsq_levels: [8, 8, 8, 2]
 data:
   data_path: data/ohlcv_v5/
   num_workers: 16

@@ -136,16 +136,27 @@ def precompute_from_checkpoints(args):
     ckpt_state = torch.load(args.strate_ii_checkpoint, weights_only=False, map_location="cpu")
     # Handle torch.compile prefix (_orig_mod.) in checkpoint keys
     sd = ckpt_state["state_dict"]
-    pred_key = "jepa.predictor.mlp.0.weight"
-    if pred_key not in sd:
-        pred_key = "_orig_mod." + pred_key
-    pred_in_dim = sd[pred_key].shape[1]
-    ckpt_z_dim = pred_in_dim - strate_ii_config.mamba2.d_model * 2
-    if ckpt_z_dim != strate_ii_config.predictor.z_dim:
-        print(f"  Checkpoint z_dim={ckpt_z_dim} (config has {strate_ii_config.predictor.z_dim}), overriding")
-        from dataclasses import replace
-        pred_cfg = replace(strate_ii_config.predictor, z_dim=ckpt_z_dim)
-        strate_ii_config = replace(strate_ii_config, predictor=pred_cfg)
+    prefix = "_orig_mod." if any(k.startswith("_orig_mod.") for k in sd) else ""
+
+    # CFM-aware detection: Phase D checkpoints have `flow_predictor.vf.0.weight`
+    # instead of (or alongside) `predictor.mlp.0.weight`
+    has_cfm = f"{prefix}jepa.flow_predictor.vf.0.weight" in sd
+    if has_cfm:
+        print("  CFM flow_predictor detected in checkpoint (Phase D)")
+
+    # Detect z_dim from checkpoint to handle pre-Strate III (z_dim=0) checkpoints
+    pred_key = f"{prefix}jepa.predictor.mlp.0.weight"
+    if pred_key in sd:
+        pred_in_dim = sd[pred_key].shape[1]
+        ckpt_z_dim = pred_in_dim - strate_ii_config.mamba2.d_model * 2
+        if ckpt_z_dim != strate_ii_config.predictor.z_dim:
+            print(f"  Checkpoint z_dim={ckpt_z_dim} (config has {strate_ii_config.predictor.z_dim}), overriding")
+            from dataclasses import replace
+            pred_cfg = replace(strate_ii_config.predictor, z_dim=ckpt_z_dim)
+            strate_ii_config = replace(strate_ii_config, predictor=pred_cfg)
+    else:
+        # CFM-only checkpoint: predictor MLP absent, z_dim irrelevant
+        print("  predictor.mlp not found in checkpoint — assuming CFM-only model")
     del ckpt_state
 
     strate_ii = StrateIILightningModule.load_from_checkpoint(
@@ -202,11 +213,13 @@ def precompute_from_checkpoints(args):
         # Load and cache full OHLCV for this pair
         if pair not in ohlcv_cache:
             ohlcv_path = ohlcv_dir / f"{pair}.pt"
-            if ohlcv_path.exists():
-                ohlcv_cache[pair] = torch.load(ohlcv_path, weights_only=True)
-            else:
-                print(f"  Warning: OHLCV not found for {pair}, using dummy")
-                ohlcv_cache[pair] = torch.ones(seq_len * patch_len * 20, 5) * 50000
+            if not ohlcv_path.exists():
+                raise FileNotFoundError(
+                    f"[INTEGRITY FATAL] OHLCV missing for {pair}: {ohlcv_path}\n"
+                    f"Using dummy stats would corrupt RevIN distribution and poison the "
+                    f"trajectory buffer. Re-run convert_parquet_to_pt.py to fix."
+                )
+            ohlcv_cache[pair] = torch.load(ohlcv_path, weights_only=True)
 
         full_ohlcv = ohlcv_cache[pair]  # (T, 5)
 
@@ -284,17 +297,16 @@ def precompute_historical(args):
     # Load Strate II (JEPA encoder only — no generator needed)
     strate_ii_config = load_strate_ii_config(args.strate_ii_config)
     ckpt_state = torch.load(args.strate_ii_checkpoint, weights_only=False, map_location="cpu")
-    # Handle torch.compile prefix (_orig_mod.) in checkpoint keys
     sd = ckpt_state["state_dict"]
-    pred_key = "jepa.predictor.mlp.0.weight"
-    if pred_key not in sd:
-        pred_key = "_orig_mod." + pred_key
-    pred_in_dim = sd[pred_key].shape[1]
-    ckpt_z_dim = pred_in_dim - strate_ii_config.mamba2.d_model * 2
-    if ckpt_z_dim != strate_ii_config.predictor.z_dim:
-        from dataclasses import replace
-        pred_cfg = replace(strate_ii_config.predictor, z_dim=ckpt_z_dim)
-        strate_ii_config = replace(strate_ii_config, predictor=pred_cfg)
+    prefix = "_orig_mod." if any(k.startswith("_orig_mod.") for k in sd) else ""
+    pred_key = f"{prefix}jepa.predictor.mlp.0.weight"
+    if pred_key in sd:
+        pred_in_dim = sd[pred_key].shape[1]
+        ckpt_z_dim = pred_in_dim - strate_ii_config.mamba2.d_model * 2
+        if ckpt_z_dim != strate_ii_config.predictor.z_dim:
+            from dataclasses import replace
+            pred_cfg = replace(strate_ii_config.predictor, z_dim=ckpt_z_dim)
+            strate_ii_config = replace(strate_ii_config, predictor=pred_cfg)
     del ckpt_state
 
     strate_ii = StrateIILightningModule.load_from_checkpoint(

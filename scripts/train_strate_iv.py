@@ -263,23 +263,150 @@ def train(args: argparse.Namespace) -> None:
     print(f"Best model (by eval reward) saved to {best_model_dir}")
 
 
+def train_tdmpc2(args: argparse.Namespace) -> None:
+    """Online TD-MPC2 + CVaR training from pre-computed trajectory buffer.
+
+    The LatentCryptoEnv samples from the pre-computed buffer for domain randomization.
+    Experience is collected online and stored in a ReplayBuffer for model-based updates.
+    """
+    import os
+    from pathlib import Path
+    from torch.utils.tensorboard import SummaryWriter
+
+    from src.strate_iv.config import load_config
+    from src.strate_iv.trajectory_buffer import TrajectoryBuffer
+    from src.strate_iv.env import LatentCryptoEnv
+    from src.strate_iv.replay_buffer import ReplayBuffer
+    from src.strate_iv.tdmpc2 import TDMPC2Agent
+
+    config = load_config(args.config)
+    cfg = config.tdmpc2
+    buffer_dir = args.buffer_dir or config.buffer.buffer_dir
+
+    print(f"Loading trajectory buffer from {buffer_dir}...")
+    full_buffer = TrajectoryBuffer(buffer_dir)
+    if len(full_buffer) == 0:
+        raise RuntimeError(f"No episodes in {buffer_dir}. Run precompute_trajectories.py first.")
+    train_buffer, eval_buffer = full_buffer.split(val_ratio=config.buffer.val_ratio)
+    print(f"  Train: {len(train_buffer)} | Eval: {len(eval_buffer)} episodes")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"  Device: {device}")
+
+    env = LatentCryptoEnv(buffer=train_buffer, config=config.env)
+    eval_env = LatentCryptoEnv(buffer=eval_buffer, config=config.env)
+    obs_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    print(f"  obs_dim: {obs_dim}, action_dim: {action_dim}")
+
+    agent = TDMPC2Agent(cfg, obs_dim=obs_dim, action_dim=action_dim, device=device)
+    replay = ReplayBuffer(
+        capacity=cfg.buffer_capacity, obs_dim=obs_dim, action_dim=action_dim,
+    )
+
+    # Auto-resume
+    save_dir = args.save_dir or cfg.save_dir
+    resumed = False
+    if not getattr(args, "no_resume", False) and os.path.exists(f"{save_dir}/world_model.pt"):
+        print(f"  Auto-resuming from {save_dir}")
+        agent.load(save_dir)
+        resumed = True
+
+    total_timesteps = args.total_timesteps or cfg.total_timesteps
+    log_dir = Path(cfg.log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(log_dir=str(log_dir))
+
+    print(f"Training TD-MPC2 for {total_timesteps} env steps...")
+    print(f"  Warmup: {cfg.warmup_steps} random steps")
+    print(f"  MPPI planning: {cfg.use_planning} (H={cfg.plan_horizon}, K={cfg.plan_samples})")
+    print(f"  CVaR alpha: {cfg.cvar_alpha}")
+
+    obs, _ = env.reset()
+    episode_reward = 0.0
+    episode_steps = 0
+    n_episodes = 0
+
+    for step in range(total_timesteps):
+        # Action selection: random during warmup, MPPI afterwards
+        if step < cfg.warmup_steps:
+            action = env.action_space.sample()
+        else:
+            action = agent.select_action(obs, eval=False)
+
+        next_obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        replay.add(obs, action, reward, next_obs, done)
+
+        episode_reward += reward
+        episode_steps += 1
+        obs = next_obs
+
+        if done:
+            n_episodes += 1
+            writer.add_scalar("train/episode_reward", episode_reward, step)
+            writer.add_scalar("train/episode_steps", episode_steps, step)
+            obs, _ = env.reset()
+            episode_reward = 0.0
+            episode_steps = 0
+
+        # Update
+        if step >= cfg.warmup_steps and step % cfg.update_freq == 0:
+            batch = replay.sample(cfg.batch_size, device=device)
+            losses = agent.update(batch)
+            for k, v in losses.items():
+                writer.add_scalar(k, v, step)
+
+        # Evaluation
+        if step > 0 and step % cfg.eval_freq == 0:
+            eval_rewards = []
+            for _ in range(min(10, len(eval_buffer))):
+                e_obs, _ = eval_env.reset()
+                e_ep_reward = 0.0
+                e_done = False
+                while not e_done:
+                    e_action = agent.select_action(e_obs, eval=True)
+                    e_obs, e_r, e_term, e_trunc, _ = eval_env.step(e_action)
+                    e_ep_reward += e_r
+                    e_done = e_term or e_trunc
+                eval_rewards.append(e_ep_reward)
+            mean_eval = float(np.mean(eval_rewards))
+            writer.add_scalar("eval/episode_reward", mean_eval, step)
+            print(f"  [{step}/{total_timesteps}] eval_reward={mean_eval:.4f}  n_episodes={n_episodes}")
+
+            # Save checkpoint
+            agent.save(save_dir)
+            print(f"  Checkpoint saved to {save_dir}")
+
+    writer.close()
+    agent.save(save_dir)
+    print(f"\nTraining complete. Final model saved to {save_dir}")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train Strate IV PPO agent")
+    parser = argparse.ArgumentParser(description="Train Strate IV RL agent")
+    parser.add_argument("--mode", type=str, default="ppo",
+                        choices=["ppo", "tdmpc2"],
+                        help="Training mode: ppo (v5, Stable-Baselines3) or tdmpc2 (v6, Phase E)")
     parser.add_argument("--smoke_test", action="store_true",
-                        help="Run smoke test with synthetic data")
+                        help="Run smoke test with synthetic data (PPO mode only)")
     parser.add_argument("--config", type=str, default="configs/strate_iv.yaml")
     parser.add_argument("--buffer_dir", type=str, default=None,
                         help="Override buffer dir from config")
+    parser.add_argument("--save_dir", type=str, default=None,
+                        help="Override TD-MPC2 checkpoint save dir")
     parser.add_argument("--total_timesteps", type=int, default=None,
                         help="Override total_timesteps from config")
     parser.add_argument("--no_resume", action="store_true",
                         help="Force fresh start, ignore existing checkpoints")
     parser.add_argument("--n_envs", type=int, default=8,
-                        help="Number of parallel environments (SubprocVecEnv workers)")
+                        help="Number of parallel environments (PPO SubprocVecEnv workers)")
 
     args = parser.parse_args()
 
-    if args.smoke_test:
+    if args.mode == "tdmpc2":
+        train_tdmpc2(args)
+    elif args.smoke_test:
         smoke_test(total_timesteps=args.total_timesteps or 1000)
     else:
         train(args)

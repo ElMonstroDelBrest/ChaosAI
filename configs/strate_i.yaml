@@ -30,6 +30,7 @@ codebook:
   eps: 1.0e-5
   dead_threshold: 2
   commitment_weight: 0.25
+  fsq_levels: []  # empty = use SphericalCodebook (VQ-VAE). Set [8,8,8,2] for FSQ.
 
 loss:
   huber_delta: 1.0

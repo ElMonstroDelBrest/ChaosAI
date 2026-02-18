@@ -1,4 +1,4 @@
-"""Configuration dataclasses for Strate I (Spherical VQ-VAE tokenizer)."""
+"""Configuration dataclasses for Strate I (Spherical VQ-VAE / FSQ tokenizer)."""
 
 from __future__ import annotations
 
@@ -48,6 +48,11 @@ class CodebookConfig:
     eps: float = 1e-5
     dead_threshold: int = 2
     commitment_weight: float = 0.25
+    # FSQ (Phase C — v6): if non-empty, use FSQCodebook instead of SphericalCodebook.
+    # product(fsq_levels) must equal num_codes.
+    # Example: [8, 8, 8, 2] → 1024 codes, 4-dim FSQ grid.
+    # Empty list (default) keeps the original SphericalCodebook (VQ-VAE).
+    fsq_levels: list = field(default_factory=list)
 
 
 @dataclass(frozen=True)

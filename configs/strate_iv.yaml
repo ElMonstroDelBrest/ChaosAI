@@ -1,6 +1,7 @@
-# Strate IV — Latent Regime RL configuration (v5.1)
+# Strate IV — Latent Regime RL configuration (v6)
 # obs_dim is auto-detected from buffer (3*d_model + n_tgt*4 + 5 + 4)
 # v5.1: calmer le PPO — LR /3, batch x2, target_kl, plus de steps
+# v6 (Phase E): TD-MPC2 + CVaR replaces PPO — use --mode tdmpc2 in train_strate_iv.py
 
 env:
   n_tgt: 8              # episode length in patches (8 x 16h = 128h ~ 5.3 days)
@@ -29,3 +30,34 @@ ppo:
   total_timesteps: 3000000  # v5.1: 3M pour laisser le temps de converger doucement
   eval_freq: 20000
   log_dir: "tb_logs/strate_iv_v51/"
+
+tdmpc2:
+  # === Architecture ===
+  latent_dim: 256             # Planning latent dim (obs projected here for speed)
+  hidden_dim: 512             # Hidden dim for all MLPs
+  n_layers: 2                 # MLP depth (keep shallow for planning speed)
+  n_quantiles: 32             # Quantiles for distributional critic (CVaR precision)
+  # === Risk ===
+  cvar_alpha: 0.25            # CVaR confidence: optimize worst-25% conditional expectation
+  gamma: 0.99
+  # === Optimizers ===
+  lr: 3.0e-4
+  ema_tau: 0.005              # Target critic EMA (slow: ~200 updates to sync)
+  max_grad_norm: 10.0
+  # === Replay ===
+  batch_size: 256
+  buffer_capacity: 100000
+  warmup_steps: 1000          # Random exploration before first update
+  update_freq: 1              # Update every env step
+  # === MPPI planning ===
+  use_planning: true
+  plan_horizon: 5             # 5-step lookahead (5 patches × 16h ≈ 80h)
+  plan_samples: 512           # K trajectory samples per MPPI call
+  plan_iters: 6               # Refinement iterations
+  plan_temperature: 0.5       # Softmax temperature (lower = more greedy)
+  plan_init_std: 0.5          # Initial action std
+  # === Training ===
+  total_timesteps: 500000     # Online RL steps
+  eval_freq: 5000
+  log_dir: "tb_logs/strate_iv_v6/"
+  save_dir: "checkpoints/strate_iv_tdmpc2/"

@@ -68,5 +68,877 @@
 05:22:07 [WARNING] Rate limited (429), waiting 53s
 05:22:08 [WARNING] Rate limited (429), waiting 52s
 05:22:08 [WARNING] Rate limited (429), waiting 52s
-WARNING] Rate limited (429), waiting 52s
-05:22:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:   1%|          | 5/432 [04:28<8:40:11, 73.09s/pair]Pairs:   1%|▏         | 6/432 [04:28<5:43:32, 48.39s/pair]Pairs:   2%|▏         | 7/432 [04:29<3:51:32, 32.69s/pair]Pairs:   2%|▏         | 9/432 [04:31<2:02:12, 17.33s/pair]Pairs:   3%|▎         | 11/432 [04:31<1:12:22, 10.31s/pair]Pairs:   3%|▎         | 12/432 [04:31<56:14,  8.03s/pair]  Pairs:   3%|▎         | 13/432 [04:31<42:44,  6.12s/pair]Pairs:   3%|▎         | 14/432 [04:32<33:14,  4.77s/pair]05:23:07 [WARNING] Rate limited (429), waiting 53s
+05:23:08 [WARNING] Rate limited (429), waiting 53s
+Pairs:   3%|▎         | 15/432 [04:33<25:47,  3.71s/pair]05:23:08 [WARNING] Rate limited (429), waiting 53s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+05:23:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:   4%|▍         | 18/432 [04:33<12:13,  1.77s/pair]05:23:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:   4%|▍         | 19/432 [05:27<1:24:32, 12.28s/pair]Pairs:   5%|▍         | 20/432 [05:27<1:05:41,  9.57s/pair]Pairs:   5%|▍         | 21/432 [05:27<49:49,  7.27s/pair]  Pairs:   5%|▌         | 23/432 [05:27<29:37,  4.35s/pair]Pairs:   6%|▌         | 24/432 [05:28<23:32,  3.46s/pair]Pairs:   6%|▌         | 25/432 [05:28<18:21,  2.71s/pair]Pairs:   6%|▋         | 28/432 [05:29<09:58,  1.48s/pair]Pairs:   7%|▋         | 29/432 [05:30<08:38,  1.29s/pair]Pairs:   7%|▋         | 30/432 [05:30<07:14,  1.08s/pair]Pairs:   7%|▋         | 31/432 [05:30<05:59,  1.12pair/s]Pairs:   8%|▊         | 34/432 [05:31<03:21,  1.98pair/s]Pairs:   8%|▊         | 36/432 [05:31<02:31,  2.61pair/s]Pairs:   9%|▊         | 37/432 [05:31<02:32,  2.59pair/s]Pairs:   9%|▉         | 38/432 [05:32<02:20,  2.81pair/s]Pairs:   9%|▉         | 39/432 [05:32<02:24,  2.71pair/s]Pairs:   9%|▉         | 40/432 [05:32<02:09,  3.02pair/s]05:24:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:   9%|▉         | 41/432 [05:32<01:58,  3.31pair/s]05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+05:24:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  10%|▉         | 42/432 [05:33<01:57,  3.31pair/s]05:24:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  10%|▉         | 43/432 [05:33<01:43,  3.75pair/s]Pairs:  10%|█         | 44/432 [05:33<01:33,  4.13pair/s]Pairs:  10%|█         | 45/432 [06:27<1:42:24, 15.88s/pair]Pairs:  11%|█         | 46/432 [06:27<1:12:36, 11.29s/pair]Pairs:  11%|█         | 48/432 [06:28<40:19,  6.30s/pair]  Pairs:  12%|█▏        | 51/432 [06:28<20:30,  3.23s/pair]Pairs:  12%|█▏        | 52/432 [06:28<16:44,  2.64s/pair]Pairs:  12%|█▏        | 53/432 [06:29<13:26,  2.13s/pair]Pairs:  13%|█▎        | 55/432 [06:29<08:37,  1.37s/pair]Pairs:  13%|█▎        | 56/432 [06:29<07:18,  1.17s/pair]Pairs:  13%|█▎        | 57/432 [06:30<05:57,  1.05pair/s]Pairs:  14%|█▍        | 60/432 [06:30<03:07,  1.98pair/s]Pairs:  14%|█▍        | 62/432 [06:30<02:22,  2.59pair/s]Pairs:  15%|█▍        | 63/432 [06:30<02:06,  2.92pair/s]Pairs:  15%|█▍        | 64/432 [06:32<03:21,  1.82pair/s]05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  15%|█▌        | 66/432 [06:32<02:57,  2.06pair/s]05:25:07 [WARNING] Rate limited (429), waiting 53s
+05:25:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  16%|█▌        | 67/432 [06:32<02:30,  2.43pair/s]Pairs:  16%|█▌        | 68/432 [07:27<1:18:10, 12.89s/pair]Pairs:  17%|█▋        | 73/432 [07:27<29:21,  4.91s/pair]  Pairs:  17%|█▋        | 74/432 [07:27<25:11,  4.22s/pair]Pairs:  18%|█▊        | 77/432 [07:28<15:52,  2.68s/pair]Pairs:  18%|█▊        | 78/432 [07:29<13:46,  2.33s/pair]Pairs:  18%|█▊        | 79/432 [07:30<12:33,  2.13s/pair]Pairs:  19%|█▉        | 81/432 [07:30<08:26,  1.44s/pair]Pairs:  19%|█▉        | 82/432 [07:30<06:57,  1.19s/pair]Pairs:  19%|█▉        | 84/432 [07:31<04:43,  1.23pair/s]Pairs:  20%|█▉        | 85/432 [07:31<03:57,  1.46pair/s]Pairs:  20%|██        | 88/432 [07:32<03:06,  1.84pair/s]05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  21%|██        | 89/432 [07:32<02:46,  2.06pair/s]05:26:07 [WARNING] Rate limited (429), waiting 53s
+05:26:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  21%|██        | 91/432 [07:33<01:58,  2.87pair/s]Pairs:  21%|██▏       | 92/432 [08:26<1:01:22, 10.83s/pair]Pairs:  22%|██▏       | 94/432 [08:26<39:16,  6.97s/pair]  Pairs:  22%|██▏       | 95/432 [08:27<31:25,  5.59s/pair]Pairs:  22%|██▏       | 96/432 [08:27<24:46,  4.42s/pair]Pairs:  22%|██▏       | 97/432 [08:27<18:57,  3.39s/pair]Pairs:  23%|██▎       | 99/432 [08:28<11:42,  2.11s/pair]Pairs:  23%|██▎       | 100/432 [08:28<09:13,  1.67s/pair]Pairs:  24%|██▎       | 102/432 [08:28<05:50,  1.06s/pair]Pairs:  24%|██▍       | 103/432 [08:28<04:45,  1.15pair/s]Pairs:  24%|██▍       | 104/432 [08:29<04:18,  1.27pair/s]Pairs:  25%|██▍       | 106/432 [08:30<03:27,  1.57pair/s]Pairs:  25%|██▍       | 107/432 [08:30<02:51,  1.89pair/s]Pairs:  25%|██▌       | 108/432 [08:30<02:43,  1.98pair/s]Pairs:  25%|██▌       | 109/432 [08:32<03:57,  1.36pair/s]05:27:07 [WARNING] Rate limited (429), waiting 54s
+05:27:07 [WARNING] Rate limited (429), waiting 54s
+05:27:07 [WARNING] Rate limited (429), waiting 54s
+Pairs:  25%|██▌       | 110/432 [08:32<03:35,  1.50pair/s]05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+05:27:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  26%|██▌       | 111/432 [08:33<03:05,  1.73pair/s]Pairs:  26%|██▌       | 112/432 [09:26<1:23:15, 15.61s/pair]Pairs:  26%|██▌       | 113/432 [09:26<59:18, 11.16s/pair]  Pairs:  27%|██▋       | 115/432 [09:27<33:03,  6.26s/pair]Pairs:  27%|██▋       | 116/432 [09:27<25:12,  4.79s/pair]Pairs:  27%|██▋       | 117/432 [09:27<18:55,  3.60s/pair]Pairs:  28%|██▊       | 119/432 [09:28<11:19,  2.17s/pair]Pairs:  28%|██▊       | 120/432 [09:28<09:17,  1.79s/pair]Pairs:  28%|██▊       | 121/432 [09:28<07:05,  1.37s/pair]Pairs:  28%|██▊       | 123/432 [09:29<04:22,  1.18pair/s]Pairs:  29%|██▊       | 124/432 [09:29<03:51,  1.33pair/s]Pairs:  29%|██▉       | 125/432 [09:29<03:12,  1.59pair/s]Pairs:  29%|██▉       | 127/432 [09:30<02:17,  2.21pair/s]Pairs:  30%|██▉       | 129/432 [09:30<01:56,  2.61pair/s]Pairs:  30%|███       | 131/432 [09:31<01:32,  3.24pair/s]Pairs:  31%|███       | 133/432 [09:31<01:14,  4.02pair/s]Pairs:  31%|███▏      | 135/432 [09:31<01:20,  3.70pair/s]Pairs:  32%|███▏      | 137/432 [09:32<01:04,  4.54pair/s]Pairs:  32%|███▏      | 139/432 [09:32<00:58,  5.02pair/s]05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  32%|███▏      | 140/432 [09:32<00:54,  5.34pair/s]05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+05:28:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  33%|███▎      | 141/432 [10:26<54:26, 11.23s/pair]Pairs:  33%|███▎      | 142/432 [10:26<42:13,  8.74s/pair]Pairs:  34%|███▎      | 145/432 [10:27<21:23,  4.47s/pair]Pairs:  34%|███▍      | 146/432 [10:27<17:25,  3.66s/pair]Pairs:  34%|███▍      | 149/432 [10:27<09:40,  2.05s/pair]Pairs:  35%|███▌      | 152/432 [10:27<06:00,  1.29s/pair]Pairs:  35%|███▌      | 153/432 [10:27<05:09,  1.11s/pair]Pairs:  36%|███▌      | 155/432 [10:29<04:37,  1.00s/pair]Pairs:  36%|███▌      | 156/432 [10:29<03:57,  1.16pair/s]Pairs:  37%|███▋      | 159/432 [10:30<02:33,  1.78pair/s]Pairs:  37%|███▋      | 160/432 [10:30<02:22,  1.91pair/s]Pairs:  38%|███▊      | 162/432 [10:30<01:45,  2.56pair/s]Pairs:  38%|███▊      | 163/432 [10:30<01:36,  2.80pair/s]Pairs:  38%|███▊      | 164/432 [10:31<01:31,  2.93pair/s]Pairs:  38%|███▊      | 165/432 [10:31<01:20,  3.31pair/s]Pairs:  38%|███▊      | 166/432 [10:31<01:28,  3.02pair/s]Pairs:  39%|███▉      | 168/432 [10:32<01:02,  4.23pair/s]Pairs:  39%|███▉      | 170/432 [10:32<00:59,  4.37pair/s]Pairs:  40%|███▉      | 172/432 [10:32<00:43,  5.98pair/s]05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+05:29:08 [WARNING] Rate limited (429), waiting 53s
+Pairs:  40%|████      | 173/432 [10:33<01:20,  3.22pair/s]05:29:08 [WARNING] Rate limited (429), waiting 52s
+05:29:08 [WARNING] Rate limited (429), waiting 52s
+05:29:08 [WARNING] Rate limited (429), waiting 52s
+05:29:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  40%|████      | 174/432 [11:26<51:40, 12.02s/pair]Pairs:  41%|████      | 175/432 [11:27<39:57,  9.33s/pair]Pairs:  41%|████      | 176/432 [11:27<29:52,  7.00s/pair]Pairs:  41%|████      | 178/432 [11:27<17:19,  4.09s/pair]Pairs:  42%|████▏     | 180/432 [11:28<10:55,  2.60s/pair]Pairs:  42%|████▏     | 181/432 [11:28<08:56,  2.14s/pair]Pairs:  42%|████▏     | 182/432 [11:29<07:32,  1.81s/pair]Pairs:  42%|████▏     | 183/432 [11:29<06:15,  1.51s/pair]Pairs:  43%|████▎     | 184/432 [11:30<04:53,  1.18s/pair]Pairs:  43%|████▎     | 185/432 [11:30<03:45,  1.10pair/s]Pairs:  43%|████▎     | 186/432 [11:30<02:54,  1.41pair/s]Pairs:  44%|████▎     | 188/432 [11:30<01:51,  2.19pair/s]Pairs:  44%|████▍     | 189/432 [11:31<01:33,  2.60pair/s]Pairs:  44%|████▍     | 191/432 [11:31<01:10,  3.44pair/s]Pairs:  44%|████▍     | 192/432 [11:31<01:00,  3.95pair/s]Pairs:  45%|████▌     | 195/432 [11:32<01:05,  3.64pair/s]Pairs:  45%|████▌     | 196/432 [11:33<01:21,  2.88pair/s]Pairs:  46%|████▌     | 197/432 [11:33<01:31,  2.58pair/s]05:30:08 [WARNING] Rate limited (429), waiting 53s
+05:30:08 [WARNING] Rate limited (429), waiting 53s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  46%|████▌     | 198/432 [11:33<01:20,  2.92pair/s]05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+05:30:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  46%|████▌     | 199/432 [12:26<52:28, 13.51s/pair]Pairs:  46%|████▋     | 200/432 [12:26<38:44, 10.02s/pair]Pairs:  47%|████▋     | 201/432 [12:27<28:17,  7.35s/pair]Pairs:  47%|████▋     | 202/432 [12:27<20:24,  5.33s/pair]Pairs:  47%|████▋     | 203/432 [12:30<18:07,  4.75s/pair]Pairs:  47%|████▋     | 204/432 [12:30<13:06,  3.45s/pair]Pairs:  48%|████▊     | 206/432 [12:31<07:24,  1.97s/pair]Pairs:  48%|████▊     | 207/432 [12:31<05:46,  1.54s/pair]05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+05:31:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  48%|████▊     | 208/432 [12:33<05:46,  1.55s/pair]Pairs:  48%|████▊     | 209/432 [13:27<59:10, 15.92s/pair]Pairs:  49%|████▉     | 211/432 [13:28<33:50,  9.19s/pair]Pairs:  49%|████▉     | 212/432 [13:31<28:00,  7.64s/pair]Pairs:  49%|████▉     | 213/432 [13:31<21:00,  5.76s/pair]Pairs:  50%|████▉     | 214/432 [13:32<15:56,  4.39s/pair]Pairs:  50%|████▉     | 215/432 [13:32<11:55,  3.30s/pair]Pairs:  50%|█████     | 216/432 [13:32<08:45,  2.43s/pair]05:32:07 [WARNING] Rate limited (429), waiting 53s
+05:32:07 [WARNING] Rate limited (429), waiting 53s
+05:32:07 [WARNING] Rate limited (429), waiting 53s
+05:32:07 [WARNING] Rate limited (429), waiting 53s
+05:32:07 [WARNING] Rate limited (429), waiting 53s
+05:32:08 [WARNING] Rate limited (429), waiting 53s
+05:32:08 [WARNING] Rate limited (429), waiting 53s
+05:32:08 [WARNING] Rate limited (429), waiting 53s
+05:32:08 [WARNING] Rate limited (429), waiting 53s
+05:32:08 [WARNING] Rate limited (429), waiting 52s
+05:32:08 [WARNING] Rate limited (429), waiting 52s
+05:32:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  50%|█████     | 218/432 [14:27<47:56, 13.44s/pair]Pairs:  51%|█████     | 219/432 [14:27<36:39, 10.33s/pair]Pairs:  51%|█████     | 220/432 [14:27<27:22,  7.75s/pair]Pairs:  51%|█████     | 221/432 [14:28<20:44,  5.90s/pair]Pairs:  52%|█████▏    | 223/432 [14:29<11:58,  3.44s/pair]Pairs:  52%|█████▏    | 224/432 [14:30<10:10,  2.94s/pair]Pairs:  52%|█████▏    | 225/432 [14:30<07:49,  2.27s/pair]Pairs:  52%|█████▏    | 226/432 [14:31<06:01,  1.76s/pair]Pairs:  53%|█████▎    | 227/432 [14:31<04:58,  1.45s/pair]Pairs:  53%|█████▎    | 229/432 [14:32<02:55,  1.16pair/s]05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  53%|█████▎    | 230/432 [14:33<02:56,  1.14pair/s]05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+05:33:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  54%|█████▎    | 232/432 [14:33<02:02,  1.64pair/s]Pairs:  54%|█████▍    | 234/432 [15:27<34:03, 10.32s/pair]Pairs:  54%|█████▍    | 235/432 [15:29<28:06,  8.56s/pair]Pairs:  55%|█████▍    | 237/432 [15:29<17:36,  5.42s/pair]Pairs:  56%|█████▌    | 240/432 [15:29<09:42,  3.03s/pair]Pairs:  56%|█████▌    | 241/432 [15:30<08:09,  2.57s/pair]Pairs:  56%|█████▌    | 242/432 [15:30<06:55,  2.19s/pair]Pairs:  56%|█████▋    | 243/432 [15:31<05:31,  1.76s/pair]Pairs:  57%|█████▋    | 245/432 [15:31<03:45,  1.21s/pair]Pairs:  57%|█████▋    | 246/432 [15:32<03:05,  1.00pair/s]Pairs:  57%|█████▋    | 247/432 [15:32<02:28,  1.25pair/s]Pairs:  58%|█████▊    | 249/432 [15:32<01:31,  2.00pair/s]Pairs:  58%|█████▊    | 250/432 [15:32<01:33,  1.95pair/s]Pairs:  58%|█████▊    | 251/432 [15:33<01:20,  2.24pair/s]Pairs:  59%|█████▊    | 253/432 [15:33<00:56,  3.19pair/s]05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+05:34:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  59%|█████▉    | 255/432 [15:33<00:55,  3.21pair/s]Pairs:  59%|█████▉    | 256/432 [16:26<32:53, 11.21s/pair]Pairs:  60%|█████▉    | 258/432 [16:26<20:25,  7.05s/pair]Pairs:  60%|█████▉    | 259/432 [16:27<16:30,  5.72s/pair]Pairs:  60%|██████    | 261/432 [16:27<10:18,  3.62s/pair]Pairs:  61%|██████    | 263/432 [16:27<06:41,  2.37s/pair]Pairs:  61%|██████▏   | 265/432 [16:28<04:34,  1.64s/pair]Pairs:  62%|██████▏   | 266/432 [16:28<03:46,  1.36s/pair]Pairs:  62%|██████▏   | 267/432 [16:28<03:11,  1.16s/pair]Pairs:  62%|██████▏   | 268/432 [16:28<02:36,  1.05pair/s]Pairs:  62%|██████▏   | 269/432 [16:29<02:25,  1.12pair/s]Pairs:  62%|██████▎   | 270/432 [16:30<02:11,  1.23pair/s]Pairs:  63%|██████▎   | 272/432 [16:30<01:20,  1.99pair/s]Pairs:  63%|██████▎   | 273/432 [16:30<01:10,  2.25pair/s]Pairs:  63%|██████▎   | 274/432 [16:30<00:59,  2.63pair/s]Pairs:  64%|██████▎   | 275/432 [16:31<01:13,  2.15pair/s]Pairs:  64%|██████▍   | 276/432 [16:32<01:13,  2.11pair/s]Pairs:  64%|██████▍   | 277/432 [16:32<01:01,  2.51pair/s]Pairs:  64%|██████▍   | 278/432 [16:32<00:54,  2.85pair/s]05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  65%|██████▍   | 279/432 [16:32<00:53,  2.87pair/s]05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+05:35:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  65%|██████▍   | 280/432 [16:33<00:49,  3.07pair/s]05:35:08 [WARNING] Rate limited (429), waiting 53s
+Pairs:  65%|██████▌   | 281/432 [17:26<40:19, 16.02s/pair]Pairs:  65%|██████▌   | 282/432 [17:26<28:20, 11.34s/pair]Pairs:  66%|██████▌   | 283/432 [17:27<20:04,  8.08s/pair]Pairs:  66%|██████▌   | 285/432 [17:27<10:49,  4.42s/pair]Pairs:  66%|██████▌   | 286/432 [17:29<09:17,  3.82s/pair]Pairs:  66%|██████▋   | 287/432 [17:29<06:58,  2.89s/pair]Pairs:  67%|██████▋   | 288/432 [17:30<05:16,  2.20s/pair]Pairs:  67%|██████▋   | 289/432 [17:30<04:05,  1.72s/pair]Pairs:  67%|██████▋   | 290/432 [17:30<03:02,  1.29s/pair]Pairs:  67%|██████▋   | 291/432 [17:31<02:28,  1.05s/pair]Pairs:  68%|██████▊   | 293/432 [17:32<01:52,  1.23pair/s]05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+05:36:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  68%|██████▊   | 294/432 [18:27<32:29, 14.12s/pair]Pairs:  69%|██████▊   | 296/432 [18:27<19:01,  8.40s/pair]Pairs:  69%|██████▉   | 297/432 [18:28<14:56,  6.64s/pair]Pairs:  69%|██████▉   | 298/432 [18:28<11:19,  5.07s/pair]Pairs:  69%|██████▉   | 299/432 [18:29<08:31,  3.85s/pair]Pairs:  70%|██████▉   | 301/432 [18:29<04:53,  2.24s/pair]Pairs:  70%|██████▉   | 302/432 [18:29<03:50,  1.77s/pair]Pairs:  70%|███████   | 303/432 [18:29<02:57,  1.38s/pair]Pairs:  71%|███████   | 305/432 [18:29<01:46,  1.20pair/s]Pairs:  71%|███████   | 306/432 [18:30<01:37,  1.29pair/s]Pairs:  71%|███████▏  | 308/432 [18:30<01:01,  2.01pair/s]Pairs:  72%|███████▏  | 309/432 [18:30<00:53,  2.28pair/s]Pairs:  72%|███████▏  | 310/432 [18:31<00:58,  2.08pair/s]Pairs:  72%|███████▏  | 311/432 [18:32<01:01,  1.98pair/s]Pairs:  72%|███████▏  | 312/432 [18:32<00:55,  2.15pair/s]05:37:07 [WARNING] Rate limited (429), waiting 54s
+05:37:07 [WARNING] Rate limited (429), waiting 54s
+05:37:07 [WARNING] Rate limited (429), waiting 54s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+05:37:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  72%|███████▏  | 313/432 [18:32<00:55,  2.15pair/s]05:37:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  73%|███████▎  | 314/432 [19:27<30:59, 15.76s/pair]Pairs:  73%|███████▎  | 315/432 [19:27<22:01, 11.30s/pair]Pairs:  73%|███████▎  | 316/432 [19:27<15:35,  8.06s/pair]Pairs:  74%|███████▎  | 318/432 [19:30<09:23,  4.94s/pair]Pairs:  74%|███████▍  | 320/432 [19:30<05:41,  3.05s/pair]Pairs:  74%|███████▍  | 321/432 [19:31<04:38,  2.51s/pair]Pairs:  75%|███████▍  | 322/432 [19:31<03:36,  1.96s/pair]Pairs:  75%|███████▍  | 323/432 [19:32<03:12,  1.77s/pair]05:38:07 [WARNING] Rate limited (429), waiting 54s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  75%|███████▌  | 324/432 [19:32<02:26,  1.35s/pair]05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+05:38:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  75%|███████▌  | 325/432 [20:26<28:08, 15.78s/pair]Pairs:  75%|███████▌  | 326/432 [20:27<20:34, 11.65s/pair]Pairs:  76%|███████▌  | 327/432 [20:28<14:55,  8.53s/pair]Pairs:  76%|███████▌  | 328/432 [20:29<11:00,  6.35s/pair]Pairs:  76%|███████▌  | 329/432 [20:29<07:54,  4.61s/pair]Pairs:  76%|███████▋  | 330/432 [20:30<05:51,  3.45s/pair]Pairs:  77%|███████▋  | 331/432 [20:30<04:12,  2.50s/pair]Pairs:  77%|███████▋  | 332/432 [20:32<03:35,  2.15s/pair]Pairs:  77%|███████▋  | 333/432 [20:33<03:00,  1.82s/pair]05:39:08 [WARNING] Rate limited (429), waiting 53s
+05:39:08 [WARNING] Rate limited (429), waiting 53s
+05:39:08 [WARNING] Rate limited (429), waiting 53s
+Pairs:  77%|███████▋  | 334/432 [20:33<02:19,  1.42s/pair]05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+05:39:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  78%|███████▊  | 335/432 [21:27<27:47, 17.20s/pair]Pairs:  78%|███████▊  | 336/432 [21:30<20:31, 12.83s/pair]Pairs:  78%|███████▊  | 337/432 [21:32<15:15,  9.64s/pair]Pairs:  78%|███████▊  | 339/432 [21:32<08:07,  5.24s/pair]Pairs:  79%|███████▊  | 340/432 [21:33<06:08,  4.01s/pair]05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  79%|███████▉  | 341/432 [21:33<04:34,  3.02s/pair]05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+05:40:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  79%|███████▉  | 343/432 [21:33<02:37,  1.77s/pair]05:40:08 [WARNING] Rate limited (429), waiting 53s
+Pairs:  80%|███████▉  | 344/432 [22:27<20:28, 13.96s/pair]Pairs:  80%|███████▉  | 345/432 [22:27<15:12, 10.49s/pair]Pairs:  80%|████████  | 346/432 [22:28<11:17,  7.88s/pair]Pairs:  80%|████████  | 347/432 [22:28<08:12,  5.79s/pair]Pairs:  81%|████████  | 349/432 [22:28<04:36,  3.33s/pair]Pairs:  81%|████████▏ | 351/432 [22:29<03:02,  2.26s/pair]Pairs:  81%|████████▏ | 352/432 [22:31<02:49,  2.12s/pair]Pairs:  82%|████████▏ | 353/432 [22:31<02:19,  1.77s/pair]Pairs:  82%|████████▏ | 354/432 [22:32<01:47,  1.38s/pair]Pairs:  82%|████████▏ | 355/432 [22:32<01:20,  1.05s/pair]Pairs:  82%|████████▏ | 356/432 [22:33<01:18,  1.03s/pair]Pairs:  83%|████████▎ | 357/432 [22:33<01:00,  1.23pair/s]Pairs:  83%|████████▎ | 358/432 [22:33<00:45,  1.64pair/s]Pairs:  83%|████████▎ | 359/432 [22:33<00:34,  2.14pair/s]Pairs:  83%|████████▎ | 360/432 [22:33<00:26,  2.69pair/s]Pairs:  84%|████████▎ | 361/432 [22:34<00:20,  3.41pair/s]05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+05:41:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  84%|████████▍ | 362/432 [23:27<18:44, 16.07s/pair]Pairs:  84%|████████▍ | 363/432 [23:28<13:11, 11.47s/pair]Pairs:  84%|████████▍ | 364/432 [23:28<09:09,  8.08s/pair]Pairs:  84%|████████▍ | 365/432 [23:28<06:22,  5.71s/pair]Pairs:  85%|████████▍ | 366/432 [23:28<04:33,  4.14s/pair]Pairs:  85%|████████▍ | 367/432 [23:29<03:15,  3.00s/pair]Pairs:  85%|████████▌ | 368/432 [23:29<02:27,  2.30s/pair]Pairs:  85%|████████▌ | 369/432 [23:30<01:46,  1.69s/pair]Pairs:  86%|████████▌ | 370/432 [23:30<01:17,  1.25s/pair]Pairs:  86%|████████▌ | 371/432 [23:30<01:04,  1.06s/pair]Pairs:  86%|████████▌ | 372/432 [23:31<00:48,  1.24pair/s]Pairs:  86%|████████▋ | 373/432 [23:31<00:35,  1.67pair/s]Pairs:  87%|████████▋ | 374/432 [23:31<00:33,  1.76pair/s]Pairs:  87%|████████▋ | 375/432 [23:32<00:28,  1.98pair/s]Pairs:  87%|████████▋ | 376/432 [23:33<00:34,  1.61pair/s]Pairs:  87%|████████▋ | 377/432 [23:33<00:25,  2.12pair/s]Pairs:  88%|████████▊ | 378/432 [23:33<00:21,  2.51pair/s]05:42:07 [WARNING] Rate limited (429), waiting 53s
+05:42:07 [WARNING] Rate limited (429), waiting 53s
+Pairs:  88%|████████▊ | 379/432 [23:33<00:16,  3.16pair/s]Pairs:  88%|████████▊ | 380/432 [23:33<00:13,  3.88pair/s]05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+05:42:08 [WARNING] Rate limited (429), waiting 53s
+Pairs:  88%|████████▊ | 381/432 [23:33<00:11,  4.48pair/s]Pairs:  88%|████████▊ | 382/432 [23:33<00:09,  5.23pair/s]Pairs:  89%|████████▊ | 383/432 [23:34<00:08,  5.88pair/s]Pairs:  89%|████████▉ | 384/432 [23:34<00:07,  6.26pair/s]05:42:08 [WARNING] Rate limited (429), waiting 52s
+05:42:08 [WARNING] Rate limited (429), waiting 52s
+Pairs:  89%|████████▉ | 385/432 [24:27<12:38, 16.14s/pair]Pairs:  89%|████████▉ | 386/432 [24:27<08:41, 11.33s/pair]Pairs:  90%|████████▉ | 387/432 [24:27<05:58,  7.97s/pair]Pairs:  90%|████████▉ | 388/432 [24:27<04:07,  5.63s/pair]Pairs:  90%|█████████ | 389/432 [24:28<02:51,  3.99s/pair]Pairs:  90%|█████████ | 390/432 [24:28<02:00,  2.86s/pair]Pairs:  91%|█████████ | 391/432 [24:28<01:23,  2.04s/pair]Pairs:  91%|█████████ | 392/432 [24:28<01:00,  1.51s/pair]Pairs:  91%|█████████ | 393/432 [24:28<00:42,  1.09s/pair]Pairs:  91%|█████████ | 394/432 [24:28<00:30,  1.25pair/s]Pairs:  91%|█████████▏| 395/432 [24:29<00:22,  1.66pair/s]Pairs:  92%|█████████▏| 396/432 [24:29<00:23,  1.50pair/s]Pairs:  92%|█████████▏| 397/432 [24:30<00:19,  1.83pair/s]Pairs:  92%|█████████▏| 398/432 [24:30<00:14,  2.32pair/s]Pairs:  92%|█████████▏| 399/432 [24:30<00:11,  2.94pair/s]Pairs:  93%|█████████▎| 400/432 [24:30<00:08,  3.58pair/s]Pairs:  93%|█████████▎| 401/432 [24:30<00:07,  4.30pair/s]Pairs:  93%|█████████▎| 402/432 [24:30<00:06,  4.96pair/s]Pairs:  93%|█████████▎| 403/432 [24:31<00:05,  5.39pair/s]Pairs:  94%|█████████▎| 404/432 [24:31<00:04,  6.00pair/s]Pairs:  94%|█████████▍| 405/432 [24:31<00:04,  6.33pair/s]Pairs:  94%|█████████▍| 406/432 [24:31<00:03,  6.65pair/s]Pairs:  94%|█████████▍| 407/432 [24:31<00:03,  6.37pair/s]Pairs:  94%|█████████▍| 408/432 [24:31<00:03,  6.16pair/s]Pairs:  95%|█████████▍| 409/432 [24:31<00:03,  5.88pair/s]Pairs:  95%|█████████▍| 410/432 [24:32<00:03,  5.79pair/s]Pairs:  95%|█████████▌| 411/432 [24:32<00:03,  5.50pair/s]Pairs:  95%|█████████▌| 412/432 [24:32<00:03,  5.43pair/s]Pairs:  96%|█████████▌| 413/432 [24:32<00:03,  5.61pair/s]Pairs:  96%|█████████▌| 414/432 [24:32<00:03,  5.51pair/s]Pairs:  96%|█████████▌| 415/432 [24:33<00:02,  5.72pair/s]Pairs:  96%|█████████▋| 416/432 [24:33<00:02,  5.90pair/s]Pairs:  97%|█████████▋| 417/432 [24:33<00:02,  5.69pair/s]Pairs:  97%|█████████▋| 418/432 [24:33<00:02,  5.65pair/s]Pairs:  97%|█████████▋| 419/432 [24:33<00:02,  5.68pair/s]Pairs:  97%|█████████▋| 420/432 [24:33<00:02,  5.59pair/s]Pairs:  97%|█████████▋| 421/432 [24:34<00:03,  3.00pair/s]Pairs:  98%|█████████▊| 422/432 [24:34<00:02,  3.45pair/s]Pairs:  98%|█████████▊| 423/432 [24:35<00:02,  3.86pair/s]Pairs:  98%|█████████▊| 424/432 [24:35<00:01,  4.15pair/s]Pairs:  98%|█████████▊| 425/432 [24:35<00:01,  4.51pair/s]Pairs:  99%|█████████▊| 426/432 [24:35<00:01,  4.67pair/s]Pairs:  99%|█████████▉| 427/432 [24:35<00:01,  4.95pair/s]Pairs:  99%|█████████▉| 428/432 [24:35<00:00,  4.86pair/s]Pairs:  99%|█████████▉| 429/432 [24:36<00:00,  4.96pair/s]Pairs: 100%|█████████▉| 430/432 [24:36<00:00,  4.93pair/s]Pairs: 100%|█████████▉| 431/432 [24:36<00:00,  4.72pair/s]Pairs: 100%|██████████| 432/432 [24:38<00:00,  1.15pair/s]Pairs: 100%|██████████| 432/432 [24:39<00:00,  3.42s/pair]
+
+======================================================================
+DOWNLOAD COMPLETE — 1h klines
+======================================================================
+
+  Downloaded:    432 pairs (9,020,712 candles, 303.6 MB)
+  Up-to-date:    0 pairs (already complete)
+  Gaps filled:   0 candles (forward-fill)
+  Errors:        0 pairs
+
+  Symbol             Candles     Gaps         From           To  Size MB
+  -------------------------------------------------------------------
+  BTCUSDT             56,109        0   2019-09-25   2026-02-18     2.39
+  ETHUSDT             54,598        0   2019-11-27   2026-02-18     2.19
+  BCHUSDT             54,069        0   2019-12-19   2026-02-18     1.83
+  XRPUSDT             53,637        0   2020-01-06   2026-02-18     1.64
+  LTCUSDT             53,565        0   2020-01-09   2026-02-18     1.53
+  TRXUSDT             53,421        0   2020-01-15   2026-02-18     1.81
+  ETCUSDT             53,397        0   2020-01-16   2026-02-18     1.78
+  LINKUSDT            53,373        0   2020-01-17   2026-02-18      1.7
+  XLMUSDT             53,301        0   2020-01-20   2026-02-18     1.99
+  ADAUSDT             53,037        0   2020-01-31   2026-02-18     1.78
+  XMRUSDT             52,965        0   2020-02-03   2026-02-18     1.63
+  DASHUSDT            52,941        0   2020-02-04   2026-02-18     1.51
+  ZECUSDT             52,917        0   2020-02-05   2026-02-18     1.54
+  XTZUSDT             52,893        0   2020-02-06   2026-02-18     1.29
+  ATOMUSDT            52,865        0   2020-02-07   2026-02-18     1.61
+  BNBUSDT             52,797        0   2020-02-10   2026-02-18     1.88
+  ONTUSDT             52,773        0   2020-02-11   2026-02-18     1.48
+  IOTAUSDT            52,749        0   2020-02-12   2026-02-18     1.45
+  BATUSDT             52,725        0   2020-02-13   2026-02-18     1.41
+  VETUSDT             52,701        0   2020-02-14   2026-02-18     2.08
+  ... and 412 more pairs
+
+  Manifest saved: data/raw/1h/_manifest.csv
+
+[2026-02-18 04:43:13]   Download complete: 432 parquet files
+[2026-02-18 04:43:13] === Phase 1b: Converting parquet -> .pt tensors ===
+Found 432 parquet files in data/raw/1h
+  1000000BOBUSDT: 6188 candles -> data/ohlcv_v5/1000000BOBUSDT.pt
+  1000000MOGUSDT: 11224 candles -> data/ohlcv_v5/1000000MOGUSDT.pt
+  1000BONKUSDT: 19647 candles -> data/ohlcv_v5/1000BONKUSDT.pt
+  1000CATUSDT: 11632 candles -> data/ohlcv_v5/1000CATUSDT.pt
+  1000CHEEMSUSDT: 10793 candles -> data/ohlcv_v5/1000CHEEMSUSDT.pt
+  1000FLOKIUSDT: 24445 candles -> data/ohlcv_v5/1000FLOKIUSDT.pt
+  1000LUNCUSDT: 30184 candles -> data/ohlcv_v5/1000LUNCUSDT.pt
+  1000PEPEUSDT: 24469 candles -> data/ohlcv_v5/1000PEPEUSDT.pt
+  1000RATSUSDT: 19095 candles -> data/ohlcv_v5/1000RATSUSDT.pt
+  1000SATSUSDT: 19167 candles -> data/ohlcv_v5/1000SATSUSDT.pt
+  1000SHIBUSDT: 41868 candles -> data/ohlcv_v5/1000SHIBUSDT.pt
+  1000WHYUSDT: 10793 candles -> data/ohlcv_v5/1000WHYUSDT.pt
+  1000XECUSDT: 38762 candles -> data/ohlcv_v5/1000XECUSDT.pt
+  1INCHUSDT: 45139 candles -> data/ohlcv_v5/1INCHUSDT.pt
+  1MBABYDOGEUSDT: 12473 candles -> data/ohlcv_v5/1MBABYDOGEUSDT.pt
+  A2ZUSDT: 4869 candles -> data/ohlcv_v5/A2ZUSDT.pt
+  AAVEUSDT: 46822 candles -> data/ohlcv_v5/AAVEUSDT.pt
+  ACEUSDT: 19027 candles -> data/ohlcv_v5/ACEUSDT.pt
+  ACHUSDT: 26199 candles -> data/ohlcv_v5/ACHUSDT.pt
+  ACTUSDT: 11128 candles -> data/ohlcv_v5/ACTUSDT.pt
+  ACXUSDT: 10526 candles -> data/ohlcv_v5/ACXUSDT.pt
+  ADAUSDT: 53037 candles -> data/ohlcv_v5/ADAUSDT.pt
+  AERGOUSDT: 7386 candles -> data/ohlcv_v5/AERGOUSDT.pt
+  AEROUSDT: 10574 candles -> data/ohlcv_v5/AEROUSDT.pt
+  AEVOUSDT: 16959 candles -> data/ohlcv_v5/AEVOUSDT.pt
+  AGLDUSDT: 22442 candles -> data/ohlcv_v5/AGLDUSDT.pt
+  AGTUSDT: 6570 candles -> data/ohlcv_v5/AGTUSDT.pt
+  AINUSDT: 5346 candles -> data/ohlcv_v5/AINUSDT.pt
+  AIOTUSDT: 7048 candles -> data/ohlcv_v5/AIOTUSDT.pt
+  AIOUSDT: 4529 candles -> data/ohlcv_v5/AIOUSDT.pt
+  AIUSDT: 18520 candles -> data/ohlcv_v5/AIUSDT.pt
+  AIXBTUSDT: 10186 candles -> data/ohlcv_v5/AIXBTUSDT.pt
+  AKTUSDT: 10961 candles -> data/ohlcv_v5/AKTUSDT.pt
+  ALCHUSDT: 9761 candles -> data/ohlcv_v5/ALCHUSDT.pt
+  ALGOUSDT: 49748 candles -> data/ohlcv_v5/ALGOUSDT.pt
+  ALICEUSDT: 43202 candles -> data/ohlcv_v5/ALICEUSDT.pt
+  ALLUSDT: 4700 candles -> data/ohlcv_v5/ALLUSDT.pt
+  ALPINEUSDT: 6907 candles -> data/ohlcv_v5/ALPINEUSDT.pt
+  ALTUSDT: 18111 candles -> data/ohlcv_v5/ALTUSDT.pt
+  ANIMEUSDT: 9372 candles -> data/ohlcv_v5/ANIMEUSDT.pt
+  ANKRUSDT: 44374 candles -> data/ohlcv_v5/ANKRUSDT.pt
+  APEUSDT: 34406 candles -> data/ohlcv_v5/APEUSDT.pt
+  API3USDT: 34970 candles -> data/ohlcv_v5/API3USDT.pt
+  APTUSDT: 29235 candles -> data/ohlcv_v5/APTUSDT.pt
+  ARBUSDT: 25502 candles -> data/ohlcv_v5/ARBUSDT.pt
+  ARCUSDT: 9520 candles -> data/ohlcv_v5/ARCUSDT.pt
+  ARKMUSDT: 22466 candles -> data/ohlcv_v5/ARKMUSDT.pt
+  ARKUSDT: 21182 candles -> data/ohlcv_v5/ARKUSDT.pt
+  ARPAUSDT: 37994 candles -> data/ohlcv_v5/ARPAUSDT.pt
+  ARUSDT: 38494 candles -> data/ohlcv_v5/ARUSDT.pt
+  ASRUSDT: 6907 candles -> data/ohlcv_v5/ASRUSDT.pt
+  ASTRUSDT: 26403 candles -> data/ohlcv_v5/ASTRUSDT.pt
+  ATAUSDT: 39170 candles -> data/ohlcv_v5/ATAUSDT.pt
+  ATHUSDT: 7717 candles -> data/ohlcv_v5/ATHUSDT.pt
+  ATOMUSDT: 52865 candles -> data/ohlcv_v5/ATOMUSDT.pt
+  AUCTIONUSDT: 19096 candles -> data/ohlcv_v5/AUCTIONUSDT.pt
+  AUSDT: 6381 candles -> data/ohlcv_v5/AUSDT.pt
+  AVAAIUSDT: 9519 candles -> data/ohlcv_v5/AVAAIUSDT.pt
+  AVAUSDT: 10360 candles -> data/ohlcv_v5/AVAUSDT.pt
+  AVAXUSDT: 47374 candles -> data/ohlcv_v5/AVAXUSDT.pt
+  AWEUSDT: 6549 candles -> data/ohlcv_v5/AWEUSDT.pt
+  AXLUSDT: 17245 candles -> data/ohlcv_v5/AXLUSDT.pt
+  AXSUSDT: 45982 candles -> data/ohlcv_v5/AXSUSDT.pt
+  B2USDT: 6903 candles -> data/ohlcv_v5/B2USDT.pt
+  B3USDT: 8873 candles -> data/ohlcv_v5/B3USDT.pt
+  BABYUSDT: 7647 candles -> data/ohlcv_v5/BABYUSDT.pt
+  BANANAS31USDT: 7987 candles -> data/ohlcv_v5/BANANAS31USDT.pt
+  BANANAUSDT: 13251 candles -> data/ohlcv_v5/BANANAUSDT.pt
+  BANDUSDT: 48718 candles -> data/ohlcv_v5/BANDUSDT.pt
+  BANKUSDT: 7330 candles -> data/ohlcv_v5/BANKUSDT.pt
+  BANUSDT: 10961 candles -> data/ohlcv_v5/BANUSDT.pt
+  BATUSDT: 52725 candles -> data/ohlcv_v5/BATUSDT.pt
+  BBUSDT: 15496 candles -> data/ohlcv_v5/BBUSDT.pt
+  BCHUSDT: 54069 candles -> data/ohlcv_v5/BCHUSDT.pt
+  BDXNUSDT: 6234 candles -> data/ohlcv_v5/BDXNUSDT.pt
+  BEAMXUSDT: 19767 candles -> data/ohlcv_v5/BEAMXUSDT.pt
+  BELUSDT: 46030 candles -> data/ohlcv_v5/BELUSDT.pt
+  BERAUSDT: 9038 candles -> data/ohlcv_v5/BERAUSDT.pt
+  BICOUSDT: 20968 candles -> data/ohlcv_v5/BICOUSDT.pt
+  BIGTIMEUSDT: 20630 candles -> data/ohlcv_v5/BIGTIMEUSDT.pt
+  BIOUSDT: 9856 candles -> data/ohlcv_v5/BIOUSDT.pt
+  BLURUSDT: 24641 candles -> data/ohlcv_v5/BLURUSDT.pt
+  BMTUSDT: 8103 candles -> data/ohlcv_v5/BMTUSDT.pt
+  BNBUSDT: 52797 candles -> data/ohlcv_v5/BNBUSDT.pt
+  BNTUSDT: 22145 candles -> data/ohlcv_v5/BNTUSDT.pt
+  BOMEUSDT: 16888 candles -> data/ohlcv_v5/BOMEUSDT.pt
+  BRETTUSDT: 13122 candles -> data/ohlcv_v5/BRETTUSDT.pt
+  BROCCOLI714USDT: 8012 candles -> data/ohlcv_v5/BROCCOLI714USDT.pt
+  BROCCOLIF3BUSDT: 8011 candles -> data/ohlcv_v5/BROCCOLIF3BUSDT.pt
+  BRUSDT: 8008 candles -> data/ohlcv_v5/BRUSDT.pt
+  BSVUSDT: 20440 candles -> data/ohlcv_v5/BSVUSDT.pt
+  BTCDOMUSDT: 40874 candles -> data/ohlcv_v5/BTCDOMUSDT.pt
+  BTCUSDT: 56109 candles -> data/ohlcv_v5/BTCUSDT.pt
+  BULLAUSDT: 5492 candles -> data/ohlcv_v5/BULLAUSDT.pt
+  BUSDT: 6516 candles -> data/ohlcv_v5/BUSDT.pt
+  C98USDT: 39338 candles -> data/ohlcv_v5/C98USDT.pt
+  CAKEUSDT: 20128 candles -> data/ohlcv_v5/CAKEUSDT.pt
+  CARVUSDT: 4668 candles -> data/ohlcv_v5/CARVUSDT.pt
+  CATIUSDT: 12377 candles -> data/ohlcv_v5/CATIUSDT.pt
+  CELOUSDT: 38522 candles -> data/ohlcv_v5/CELOUSDT.pt
+  CELRUSDT: 42886 candles -> data/ohlcv_v5/CELRUSDT.pt
+  CETUSUSDT: 11247 candles -> data/ohlcv_v5/CETUSUSDT.pt
+  CFXUSDT: 26247 candles -> data/ohlcv_v5/CFXUSDT.pt
+  CGPTUSDT: 10185 candles -> data/ohlcv_v5/CGPTUSDT.pt
+  CHILLGUYUSDT: 10742 candles -> data/ohlcv_v5/CHILLGUYUSDT.pt
+  CHRUSDT: 43294 candles -> data/ohlcv_v5/CHRUSDT.pt
+  CHZUSDT: 44494 candles -> data/ohlcv_v5/CHZUSDT.pt
+  CKBUSDT: 26057 candles -> data/ohlcv_v5/CKBUSDT.pt
+  COMPUSDT: 49412 candles -> data/ohlcv_v5/COMPUSDT.pt
+  COOKIEUSDT: 9761 candles -> data/ohlcv_v5/COOKIEUSDT.pt
+  COSUSDT: 12136 candles -> data/ohlcv_v5/COSUSDT.pt
+  COTIUSDT: 43342 candles -> data/ohlcv_v5/COTIUSDT.pt
+  COWUSDT: 11247 candles -> data/ohlcv_v5/COWUSDT.pt
+  CROSSUSDT: 5346 candles -> data/ohlcv_v5/CROSSUSDT.pt
+  CRVUSDT: 47902 candles -> data/ohlcv_v5/CRVUSDT.pt
+  CTKUSDT: 7050 candles -> data/ohlcv_v5/CTKUSDT.pt
+  CTSIUSDT: 37826 candles -> data/ohlcv_v5/CTSIUSDT.pt
+  CUSDT: 5228 candles -> data/ohlcv_v5/CUSDT.pt
+  CVCUSDT: 6668 candles -> data/ohlcv_v5/CVCUSDT.pt
+  CVXUSDT: 5033 candles -> data/ohlcv_v5/CVXUSDT.pt
+  CYBERUSDT: 21881 candles -> data/ohlcv_v5/CYBERUSDT.pt
+  DAMUSDT: 4408 candles -> data/ohlcv_v5/DAMUSDT.pt
+  DASHUSDT: 52941 candles -> data/ohlcv_v5/DASHUSDT.pt
+  DEEPUSDT: 7244 candles -> data/ohlcv_v5/DEEPUSDT.pt
+  DEGENUSDT: 11033 candles -> data/ohlcv_v5/DEGENUSDT.pt
+  DEGOUSDT: 10359 candles -> data/ohlcv_v5/DEGOUSDT.pt
+  DENTUSDT: 43009 candles -> data/ohlcv_v5/DENTUSDT.pt
+  DEXEUSDT: 10097 candles -> data/ohlcv_v5/DEXEUSDT.pt
+  DIAUSDT: 12088 candles -> data/ohlcv_v5/DIAUSDT.pt
+  DODOXUSDT: 22193 candles -> data/ohlcv_v5/DODOXUSDT.pt
+  DOGEUSDT: 49172 candles -> data/ohlcv_v5/DOGEUSDT.pt
+  DOGSUSDT: 12976 candles -> data/ohlcv_v5/DOGSUSDT.pt
+  DOLOUSDT: 7034 candles -> data/ohlcv_v5/DOLOUSDT.pt
+  DOODUSDT: 6831 candles -> data/ohlcv_v5/DOODUSDT.pt
+  DOTUSDT: 48142 candles -> data/ohlcv_v5/DOTUSDT.pt
+  DRIFTUSDT: 11197 candles -> data/ohlcv_v5/DRIFTUSDT.pt
+  DUSDT: 9715 candles -> data/ohlcv_v5/DUSDT.pt
+  DUSKUSDT: 36074 candles -> data/ohlcv_v5/DUSKUSDT.pt
+  DYDXUSDT: 38930 candles -> data/ohlcv_v5/DYDXUSDT.pt
+  DYMUSDT: 17806 candles -> data/ohlcv_v5/DYMUSDT.pt
+  EDUUSDT: 24593 candles -> data/ohlcv_v5/EDUUSDT.pt
+  EGLDUSDT: 47590 candles -> data/ohlcv_v5/EGLDUSDT.pt
+  EIGENUSDT: 12119 candles -> data/ohlcv_v5/EIGENUSDT.pt
+  ENAUSDT: 16480 candles -> data/ohlcv_v5/ENAUSDT.pt
+  ENJUSDT: 47230 candles -> data/ohlcv_v5/ENJUSDT.pt
+  ENSUSDT: 36986 candles -> data/ohlcv_v5/ENSUSDT.pt
+  EPICUSDT: 8205 candles -> data/ohlcv_v5/EPICUSDT.pt
+  ERAUSDT: 5174 candles -> data/ohlcv_v5/ERAUSDT.pt
+  ESPORTSUSDT: 4891 candles -> data/ohlcv_v5/ESPORTSUSDT.pt
+  ETCUSDT: 53397 candles -> data/ohlcv_v5/ETCUSDT.pt
+  ETHFIUSDT: 16837 candles -> data/ohlcv_v5/ETHFIUSDT.pt
+  ETHUSDT: 54598 candles -> data/ohlcv_v5/ETHUSDT.pt
+  ETHWUSDT: 19504 candles -> data/ohlcv_v5/ETHWUSDT.pt
+  FARTCOINUSDT: 10186 candles -> data/ohlcv_v5/FARTCOINUSDT.pt
+  FETUSDT: 27075 candles -> data/ohlcv_v5/FETUSDT.pt
+  FHEUSDT: 7478 candles -> data/ohlcv_v5/FHEUSDT.pt
+  FIDAUSDT: 12400 candles -> data/ohlcv_v5/FIDAUSDT.pt
+  FILUSDT: 46823 candles -> data/ohlcv_v5/FILUSDT.pt
+  FIOUSDT: 12377 candles -> data/ohlcv_v5/FIOUSDT.pt
+  FLOWUSDT: 35258 candles -> data/ohlcv_v5/FLOWUSDT.pt
+  FLUXUSDT: 12790 candles -> data/ohlcv_v5/FLUXUSDT.pt
+  FORMUSDT: 8061 candles -> data/ohlcv_v5/FORMUSDT.pt
+  FORTHUSDT: 7580 candles -> data/ohlcv_v5/FORTHUSDT.pt
+  FUNUSDT: 7772 candles -> data/ohlcv_v5/FUNUSDT.pt
+  FUSDT: 5872 candles -> data/ohlcv_v5/FUSDT.pt
+  GALAUSDT: 38738 candles -> data/ohlcv_v5/GALAUSDT.pt
+  GASUSDT: 20330 candles -> data/ohlcv_v5/GASUSDT.pt
+  GLMUSDT: 17443 candles -> data/ohlcv_v5/GLMUSDT.pt
+  GMTUSDT: 34465 candles -> data/ohlcv_v5/GMTUSDT.pt
+  GMXUSDT: 26319 candles -> data/ohlcv_v5/GMXUSDT.pt
+  GOATUSDT: 11559 candles -> data/ohlcv_v5/GOATUSDT.pt
+  GPSUSDT: 8772 candles -> data/ohlcv_v5/GPSUSDT.pt
+  GRASSUSDT: 11197 candles -> data/ohlcv_v5/GRASSUSDT.pt
+  GRIFFAINUSDT: 9879 candles -> data/ohlcv_v5/GRIFFAINUSDT.pt
+  GRTUSDT: 45286 candles -> data/ohlcv_v5/GRTUSDT.pt
+  GTCUSDT: 41114 candles -> data/ohlcv_v5/GTCUSDT.pt
+  GUNUSDT: 7768 candles -> data/ohlcv_v5/GUNUSDT.pt
+  GUSDT: 13240 candles -> data/ohlcv_v5/GUSDT.pt
+  HAEDALUSDT: 7033 candles -> data/ohlcv_v5/HAEDALUSDT.pt
+  HBARUSDT: 43174 candles -> data/ohlcv_v5/HBARUSDT.pt
+  HEIUSDT: 8876 candles -> data/ohlcv_v5/HEIUSDT.pt
+  HFTUSDT: 25169 candles -> data/ohlcv_v5/HFTUSDT.pt
+  HIGHUSDT: 26571 candles -> data/ohlcv_v5/HIGHUSDT.pt
+  HIPPOUSDT: 11080 candles -> data/ohlcv_v5/HIPPOUSDT.pt
+  HIVEUSDT: 10121 candles -> data/ohlcv_v5/HIVEUSDT.pt
+  HMSTRUSDT: 12232 candles -> data/ohlcv_v5/HMSTRUSDT.pt
+  HOMEUSDT: 6065 candles -> data/ohlcv_v5/HOMEUSDT.pt
+  HOOKUSDT: 26930 candles -> data/ohlcv_v5/HOOKUSDT.pt
+  HOTUSDT: 42862 candles -> data/ohlcv_v5/HOTUSDT.pt
+  HUMAUSDT: 6424 candles -> data/ohlcv_v5/HUMAUSDT.pt
+  HUSDT: 5707 candles -> data/ohlcv_v5/HUSDT.pt
+  HYPERUSDT: 7240 candles -> data/ohlcv_v5/HYPERUSDT.pt
+  HYPEUSDT: 6330 candles -> data/ohlcv_v5/HYPEUSDT.pt
+  ICNTUSDT: 5512 candles -> data/ohlcv_v5/ICNTUSDT.pt
+  ICPUSDT: 29763 candles -> data/ohlcv_v5/ICPUSDT.pt
+  ICXUSDT: 47567 candles -> data/ohlcv_v5/ICXUSDT.pt
+  IDOLUSDT: 5491 candles -> data/ohlcv_v5/IDOLUSDT.pt
+  IDUSDT: 25503 candles -> data/ohlcv_v5/IDUSDT.pt
+  ILVUSDT: 19932 candles -> data/ohlcv_v5/ILVUSDT.pt
+  IMXUSDT: 35234 candles -> data/ohlcv_v5/IMXUSDT.pt
+  INITUSDT: 7390 candles -> data/ohlcv_v5/INITUSDT.pt
+  INJUSDT: 30747 candles -> data/ohlcv_v5/INJUSDT.pt
+  INUSDT: 4674 candles -> data/ohlcv_v5/INUSDT.pt
+  IOSTUSDT: 52533 candles -> data/ohlcv_v5/IOSTUSDT.pt
+  IOTAUSDT: 52749 candles -> data/ohlcv_v5/IOTAUSDT.pt
+  IOTXUSDT: 39626 candles -> data/ohlcv_v5/IOTXUSDT.pt
+  IOUSDT: 14799 candles -> data/ohlcv_v5/IOUSDT.pt
+  IPUSDT: 8868 candles -> data/ohlcv_v5/IPUSDT.pt
+  JASMYUSDT: 33602 candles -> data/ohlcv_v5/JASMYUSDT.pt
+  JELLYJELLYUSDT: 7885 candles -> data/ohlcv_v5/JELLYJELLYUSDT.pt
+  JOEUSDT: 25361 candles -> data/ohlcv_v5/JOEUSDT.pt
+  JSTUSDT: 7099 candles -> data/ohlcv_v5/JSTUSDT.pt
+  JTOUSDT: 19267 candles -> data/ohlcv_v5/JTOUSDT.pt
+  JUPUSDT: 17962 candles -> data/ohlcv_v5/JUPUSDT.pt
+  KAIAUSDT: 10575 candles -> data/ohlcv_v5/KAIAUSDT.pt
+  KAITOUSDT: 8704 candles -> data/ohlcv_v5/KAITOUSDT.pt
+  KASUSDT: 19779 candles -> data/ohlcv_v5/KASUSDT.pt
+  KAVAUSDT: 48742 candles -> data/ohlcv_v5/KAVAUSDT.pt
+  KERNELUSDT: 7433 candles -> data/ohlcv_v5/KERNELUSDT.pt
+  KMNOUSDT: 10186 candles -> data/ohlcv_v5/KMNOUSDT.pt
+  KNCUSDT: 49605 candles -> data/ohlcv_v5/KNCUSDT.pt
+  KOMAUSDT: 10432 candles -> data/ohlcv_v5/KOMAUSDT.pt
+  KSMUSDT: 46870 candles -> data/ohlcv_v5/KSMUSDT.pt
+  LAUSDT: 6188 candles -> data/ohlcv_v5/LAUSDT.pt
+  LAYERUSDT: 8917 candles -> data/ohlcv_v5/LAYERUSDT.pt
+  LDOUSDT: 29873 candles -> data/ohlcv_v5/LDOUSDT.pt
+  LINKUSDT: 53373 candles -> data/ohlcv_v5/LINKUSDT.pt
+  LISTAUSDT: 14584 candles -> data/ohlcv_v5/LISTAUSDT.pt
+  LPTUSDT: 37442 candles -> data/ohlcv_v5/LPTUSDT.pt
+  LQTYUSDT: 25817 candles -> data/ohlcv_v5/LQTYUSDT.pt
+  LRCUSDT: 46750 candles -> data/ohlcv_v5/LRCUSDT.pt
+  LSKUSDT: 18110 candles -> data/ohlcv_v5/LSKUSDT.pt
+  LTCUSDT: 53565 candles -> data/ohlcv_v5/LTCUSDT.pt
+  LUMIAUSDT: 10241 candles -> data/ohlcv_v5/LUMIAUSDT.pt
+  LUNA2USDT: 30170 candles -> data/ohlcv_v5/LUNA2USDT.pt
+  MAGICUSDT: 26882 candles -> data/ohlcv_v5/MAGICUSDT.pt
+  MANAUSDT: 43222 candles -> data/ohlcv_v5/MANAUSDT.pt
+  MANTAUSDT: 18279 candles -> data/ohlcv_v5/MANTAUSDT.pt
+  MASKUSDT: 39266 candles -> data/ohlcv_v5/MASKUSDT.pt
+  MAVIAUSDT: 7884 candles -> data/ohlcv_v5/MAVIAUSDT.pt
+  MAVUSDT: 23153 candles -> data/ohlcv_v5/MAVUSDT.pt
+  MBOXUSDT: 12931 candles -> data/ohlcv_v5/MBOXUSDT.pt
+  MELANIAUSDT: 9451 candles -> data/ohlcv_v5/MELANIAUSDT.pt
+  MEMEUSDT: 20105 candles -> data/ohlcv_v5/MEMEUSDT.pt
+  MERLUSDT: 6356 candles -> data/ohlcv_v5/MERLUSDT.pt
+  METISUSDT: 16988 candles -> data/ohlcv_v5/METISUSDT.pt
+  MEUSDT: 10428 candles -> data/ohlcv_v5/MEUSDT.pt
+  MEWUSDT: 14655 candles -> data/ohlcv_v5/MEWUSDT.pt
+  MINAUSDT: 26562 candles -> data/ohlcv_v5/MINAUSDT.pt
+  MLNUSDT: 7772 candles -> data/ohlcv_v5/MLNUSDT.pt
+  MOCAUSDT: 10289 candles -> data/ohlcv_v5/MOCAUSDT.pt
+  MOODENGUSDT: 11539 candles -> data/ohlcv_v5/MOODENGUSDT.pt
+  MORPHOUSDT: 10742 candles -> data/ohlcv_v5/MORPHOUSDT.pt
+  MOVEUSDT: 10455 candles -> data/ohlcv_v5/MOVEUSDT.pt
+  MOVRUSDT: 18832 candles -> data/ohlcv_v5/MOVRUSDT.pt
+  MTLUSDT: 42838 candles -> data/ohlcv_v5/MTLUSDT.pt
+  MUBARAKUSDT: 8103 candles -> data/ohlcv_v5/MUBARAKUSDT.pt
+  MUSDT: 5419 candles -> data/ohlcv_v5/MUSDT.pt
+  MYXUSDT: 5872 candles -> data/ohlcv_v5/MYXUSDT.pt
+  NAORISUSDT: 4840 candles -> data/ohlcv_v5/NAORISUSDT.pt
+  NEARUSDT: 46845 candles -> data/ohlcv_v5/NEARUSDT.pt
+  NEIROUSDT: 12473 candles -> data/ohlcv_v5/NEIROUSDT.pt
+  NEOUSDT: 52629 candles -> data/ohlcv_v5/NEOUSDT.pt
+  NEWTUSDT: 5846 candles -> data/ohlcv_v5/NEWTUSDT.pt
+  NFPUSDT: 18808 candles -> data/ohlcv_v5/NFPUSDT.pt
+  NILUSDT: 7936 candles -> data/ohlcv_v5/NILUSDT.pt
+  NMRUSDT: 23321 candles -> data/ohlcv_v5/NMRUSDT.pt
+  NOTUSDT: 15423 candles -> data/ohlcv_v5/NOTUSDT.pt
+  NTRNUSDT: 19841 candles -> data/ohlcv_v5/NTRNUSDT.pt
+  NXPCUSDT: 6694 candles -> data/ohlcv_v5/NXPCUSDT.pt
+  OGNUSDT: 42814 candles -> data/ohlcv_v5/OGNUSDT.pt
+  OGUSDT: 6764 candles -> data/ohlcv_v5/OGUSDT.pt
+  OLUSDT: 5705 candles -> data/ohlcv_v5/OLUSDT.pt
+  OMUSDT: 17655 candles -> data/ohlcv_v5/OMUSDT.pt
+  ONDOUSDT: 18232 candles -> data/ohlcv_v5/ONDOUSDT.pt
+  ONEUSDT: 43150 candles -> data/ohlcv_v5/ONEUSDT.pt
+  ONGUSDT: 19528 candles -> data/ohlcv_v5/ONGUSDT.pt
+  ONTUSDT: 52773 candles -> data/ohlcv_v5/ONTUSDT.pt
+  OPUSDT: 32583 candles -> data/ohlcv_v5/OPUSDT.pt
+  ORCAUSDT: 10526 candles -> data/ohlcv_v5/ORCAUSDT.pt
+  ORDIUSDT: 20008 candles -> data/ohlcv_v5/ORDIUSDT.pt
+  OXTUSDT: 22121 candles -> data/ohlcv_v5/OXTUSDT.pt
+  PARTIUSDT: 7912 candles -> data/ohlcv_v5/PARTIUSDT.pt
+  PAXGUSDT: 7866 candles -> data/ohlcv_v5/PAXGUSDT.pt
+  PENDLEUSDT: 22466 candles -> data/ohlcv_v5/PENDLEUSDT.pt
+  PENGUUSDT: 10260 candles -> data/ohlcv_v5/PENGUUSDT.pt
+  PEOPLEUSDT: 36409 candles -> data/ohlcv_v5/PEOPLEUSDT.pt
+  PHAUSDT: 9953 candles -> data/ohlcv_v5/PHAUSDT.pt
+  PHBUSDT: 26343 candles -> data/ohlcv_v5/PHBUSDT.pt
+  PIPPINUSDT: 9354 candles -> data/ohlcv_v5/PIPPINUSDT.pt
+  PIXELUSDT: 17510 candles -> data/ohlcv_v5/PIXELUSDT.pt
+  PLAYUSDT: 4843 candles -> data/ohlcv_v5/PLAYUSDT.pt
+  PLUMEUSDT: 8008 candles -> data/ohlcv_v5/PLUMEUSDT.pt
+  PNUTUSDT: 11128 candles -> data/ohlcv_v5/PNUTUSDT.pt
+  POLUSDT: 12544 candles -> data/ohlcv_v5/POLUSDT.pt
+  POLYXUSDT: 20330 candles -> data/ohlcv_v5/POLYXUSDT.pt
+  POPCATUSDT: 13072 candles -> data/ohlcv_v5/POPCATUSDT.pt
+  PORTALUSDT: 17270 candles -> data/ohlcv_v5/PORTALUSDT.pt
+  POWRUSDT: 20282 candles -> data/ohlcv_v5/POWRUSDT.pt
+  PROMPTUSDT: 7510 candles -> data/ohlcv_v5/PROMPTUSDT.pt
+  PROMUSDT: 9568 candles -> data/ohlcv_v5/PROMUSDT.pt
+  PROVEUSDT: 4716 candles -> data/ohlcv_v5/PROVEUSDT.pt
+  PUFFERUSDT: 6212 candles -> data/ohlcv_v5/PUFFERUSDT.pt
+  PUMPBTCUSDT: 5995 candles -> data/ohlcv_v5/PUMPBTCUSDT.pt
+  PUMPUSDT: 5349 candles -> data/ohlcv_v5/PUMPUSDT.pt
+  PUNDIXUSDT: 7051 candles -> data/ohlcv_v5/PUNDIXUSDT.pt
+  PYTHUSDT: 19646 candles -> data/ohlcv_v5/PYTHUSDT.pt
+  QNTUSDT: 29211 candles -> data/ohlcv_v5/QNTUSDT.pt
+  QTUMUSDT: 52557 candles -> data/ohlcv_v5/QTUMUSDT.pt
+  RAREUSDT: 13240 candles -> data/ohlcv_v5/RAREUSDT.pt
+  RAYSOLUSDT: 10433 candles -> data/ohlcv_v5/RAYSOLUSDT.pt
+  RDNTUSDT: 25193 candles -> data/ohlcv_v5/RDNTUSDT.pt
+  REDUSDT: 8365 candles -> data/ohlcv_v5/REDUSDT.pt
+  RENDERUSDT: 13723 candles -> data/ohlcv_v5/RENDERUSDT.pt
+  RESOLVUSDT: 6063 candles -> data/ohlcv_v5/RESOLVUSDT.pt
+  REZUSDT: 15807 candles -> data/ohlcv_v5/REZUSDT.pt
+  RIFUSDT: 20416 candles -> data/ohlcv_v5/RIFUSDT.pt
+  RLCUSDT: 48670 candles -> data/ohlcv_v5/RLCUSDT.pt
+  RONINUSDT: 17832 candles -> data/ohlcv_v5/RONINUSDT.pt
+  ROSEUSDT: 36238 candles -> data/ohlcv_v5/ROSEUSDT.pt
+  RPLUSDT: 12640 candles -> data/ohlcv_v5/RPLUSDT.pt
+  RSRUSDT: 46750 candles -> data/ohlcv_v5/RSRUSDT.pt
+  RUNEUSDT: 47830 candles -> data/ohlcv_v5/RUNEUSDT.pt
+  RVNUSDT: 43702 candles -> data/ohlcv_v5/RVNUSDT.pt
+  SAFEUSDT: 11536 candles -> data/ohlcv_v5/SAFEUSDT.pt
+  SAGAUSDT: 16314 candles -> data/ohlcv_v5/SAGAUSDT.pt
+  SAHARAUSDT: 5681 candles -> data/ohlcv_v5/SAHARAUSDT.pt
+  SANDUSDT: 44398 candles -> data/ohlcv_v5/SANDUSDT.pt
+  SANTOSUSDT: 11463 candles -> data/ohlcv_v5/SANTOSUSDT.pt
+  SAPIENUSDT: 4355 candles -> data/ohlcv_v5/SAPIENUSDT.pt
+  SCRTUSDT: 10889 candles -> data/ohlcv_v5/SCRTUSDT.pt
+  SCRUSDT: 11611 candles -> data/ohlcv_v5/SCRUSDT.pt
+  SEIUSDT: 21986 candles -> data/ohlcv_v5/SEIUSDT.pt
+  SFPUSDT: 43678 candles -> data/ohlcv_v5/SFPUSDT.pt
+  SHELLUSDT: 8771 candles -> data/ohlcv_v5/SHELLUSDT.pt
+  SIGNUSDT: 7098 candles -> data/ohlcv_v5/SIGNUSDT.pt
+  SIRENUSDT: 7988 candles -> data/ohlcv_v5/SIRENUSDT.pt
+  SKLUSDT: 45550 candles -> data/ohlcv_v5/SKLUSDT.pt
+  SKYAIUSDT: 6739 candles -> data/ohlcv_v5/SKYAIUSDT.pt
+  SLPUSDT: 5033 candles -> data/ohlcv_v5/SLPUSDT.pt
+  SNXUSDT: 48334 candles -> data/ohlcv_v5/SNXUSDT.pt
+  SOLUSDT: 47590 candles -> data/ohlcv_v5/SOLUSDT.pt
+  SOLVUSDT: 9520 candles -> data/ohlcv_v5/SOLVUSDT.pt
+  SONICUSDT: 9742 candles -> data/ohlcv_v5/SONICUSDT.pt
+  SOONUSDT: 6500 candles -> data/ohlcv_v5/SOONUSDT.pt
+  SOPHUSDT: 6376 candles -> data/ohlcv_v5/SOPHUSDT.pt
+  SPELLUSDT: 30257 candles -> data/ohlcv_v5/SPELLUSDT.pt
+  SPKUSDT: 5900 candles -> data/ohlcv_v5/SPKUSDT.pt
+  SPXUSDT: 10432 candles -> data/ohlcv_v5/SPXUSDT.pt
+  SQDUSDT: 6040 candles -> data/ohlcv_v5/SQDUSDT.pt
+  SSVUSDT: 26153 candles -> data/ohlcv_v5/SSVUSDT.pt
+  STEEMUSDT: 19982 candles -> data/ohlcv_v5/STEEMUSDT.pt
+  STGUSDT: 30545 candles -> data/ohlcv_v5/STGUSDT.pt
+  STORJUSDT: 47542 candles -> data/ohlcv_v5/STORJUSDT.pt
+  STOUSDT: 7478 candles -> data/ohlcv_v5/STOUSDT.pt
+  STRKUSDT: 17484 candles -> data/ohlcv_v5/STRKUSDT.pt
+  STXUSDT: 26223 candles -> data/ohlcv_v5/STXUSDT.pt
+  SUIUSDT: 24517 candles -> data/ohlcv_v5/SUIUSDT.pt
+  SUNUSDT: 13071 candles -> data/ohlcv_v5/SUNUSDT.pt
+  SUPERUSDT: 19552 candles -> data/ohlcv_v5/SUPERUSDT.pt
+  SUSDT: 9547 candles -> data/ohlcv_v5/SUSDT.pt
+  SUSHIUSDT: 47830 candles -> data/ohlcv_v5/SUSHIUSDT.pt
+  SWARMSUSDT: 9760 candles -> data/ohlcv_v5/SWARMSUSDT.pt
+  SXTUSDT: 7004 candles -> data/ohlcv_v5/SXTUSDT.pt
+  SYNUSDT: 13216 candles -> data/ohlcv_v5/SYNUSDT.pt
+  SYRUPUSDT: 6884 candles -> data/ohlcv_v5/SYRUPUSDT.pt
+  SYSUSDT: 13144 candles -> data/ohlcv_v5/SYSUSDT.pt
+  TACUSDT: 5226 candles -> data/ohlcv_v5/TACUSDT.pt
+  TAGUSDT: 4985 candles -> data/ohlcv_v5/TAGUSDT.pt
+  TAIKOUSDT: 6040 candles -> data/ohlcv_v5/TAIKOUSDT.pt
+  TAOUSDT: 16262 candles -> data/ohlcv_v5/TAOUSDT.pt
+  TAUSDT: 5085 candles -> data/ohlcv_v5/TAUSDT.pt
+  THETAUSDT: 50229 candles -> data/ohlcv_v5/THETAUSDT.pt
+  THEUSDT: 10744 candles -> data/ohlcv_v5/THEUSDT.pt
+  TIAUSDT: 20171 candles -> data/ohlcv_v5/TIAUSDT.pt
+  TLMUSDT: 25337 candles -> data/ohlcv_v5/TLMUSDT.pt
+  TNSRUSDT: 16332 candles -> data/ohlcv_v5/TNSRUSDT.pt
+  TONUSDT: 17248 candles -> data/ohlcv_v5/TONUSDT.pt
+  TOWNSUSDT: 4718 candles -> data/ohlcv_v5/TOWNSUSDT.pt
+  TRBUSDT: 47854 candles -> data/ohlcv_v5/TRBUSDT.pt
+  TREEUSDT: 4887 candles -> data/ohlcv_v5/TREEUSDT.pt
+  TRUMPUSDT: 9496 candles -> data/ohlcv_v5/TRUMPUSDT.pt
+  TRUUSDT: 25889 candles -> data/ohlcv_v5/TRUUSDT.pt
+  TRXUSDT: 53421 candles -> data/ohlcv_v5/TRXUSDT.pt
+  TSTUSDT: 8968 candles -> data/ohlcv_v5/TSTUSDT.pt
+  TURBOUSDT: 15085 candles -> data/ohlcv_v5/TURBOUSDT.pt
+  TUSDT: 26704 candles -> data/ohlcv_v5/TUSDT.pt
+  TUTUSDT: 8036 candles -> data/ohlcv_v5/TUTUSDT.pt
+  TWTUSDT: 20102 candles -> data/ohlcv_v5/TWTUSDT.pt
+  UMAUSDT: 24353 candles -> data/ohlcv_v5/UMAUSDT.pt
+  UNIUSDT: 47494 candles -> data/ohlcv_v5/UNIUSDT.pt
+  USDCUSDT: 25764 candles -> data/ohlcv_v5/USDCUSDT.pt
+  USELESSUSDT: 4480 candles -> data/ohlcv_v5/USELESSUSDT.pt
+  USTCUSDT: 19528 candles -> data/ohlcv_v5/USTCUSDT.pt
+  USUALUSDT: 10240 candles -> data/ohlcv_v5/USUALUSDT.pt
+  VANAUSDT: 10287 candles -> data/ohlcv_v5/VANAUSDT.pt
+  VANRYUSDT: 16955 candles -> data/ohlcv_v5/VANRYUSDT.pt
+  VELODROMEUSDT: 10356 candles -> data/ohlcv_v5/VELODROMEUSDT.pt
+  VELVETUSDT: 5227 candles -> data/ohlcv_v5/VELVETUSDT.pt
+  VETUSDT: 52701 candles -> data/ohlcv_v5/VETUSDT.pt
+  VICUSDT: 8220 candles -> data/ohlcv_v5/VICUSDT.pt
+  VINEUSDT: 9355 candles -> data/ohlcv_v5/VINEUSDT.pt
+  VIRTUALUSDT: 10432 candles -> data/ohlcv_v5/VIRTUALUSDT.pt
+  VTHOUSDT: 9403 candles -> data/ohlcv_v5/VTHOUSDT.pt
+  VVVUSDT: 9236 candles -> data/ohlcv_v5/VVVUSDT.pt
+  WALUSDT: 7861 candles -> data/ohlcv_v5/WALUSDT.pt
+  WAXPUSDT: 20486 candles -> data/ohlcv_v5/WAXPUSDT.pt
+  WCTUSDT: 7410 candles -> data/ohlcv_v5/WCTUSDT.pt
+  WIFUSDT: 18278 candles -> data/ohlcv_v5/WIFUSDT.pt
+  WLDUSDT: 22553 candles -> data/ohlcv_v5/WLDUSDT.pt
+  WOOUSDT: 33890 candles -> data/ohlcv_v5/WOOUSDT.pt
+  WUSDT: 16453 candles -> data/ohlcv_v5/WUSDT.pt
+  XAIUSDT: 18495 candles -> data/ohlcv_v5/XAIUSDT.pt
+  XLMUSDT: 53301 candles -> data/ohlcv_v5/XLMUSDT.pt
+  XMRUSDT: 52965 candles -> data/ohlcv_v5/XMRUSDT.pt
+  XNYUSDT: 4529 candles -> data/ohlcv_v5/XNYUSDT.pt
+  XRPUSDT: 53637 candles -> data/ohlcv_v5/XRPUSDT.pt
+  XTZUSDT: 52893 candles -> data/ohlcv_v5/XTZUSDT.pt
+  XVGUSDT: 23009 candles -> data/ohlcv_v5/XVGUSDT.pt
+  XVSUSDT: 25011 candles -> data/ohlcv_v5/XVSUSDT.pt
+  YFIUSDT: 47926 candles -> data/ohlcv_v5/YFIUSDT.pt
+  YGGUSDT: 22273 candles -> data/ohlcv_v5/YGGUSDT.pt
+  ZECUSDT: 52917 candles -> data/ohlcv_v5/ZECUSDT.pt
+  ZENUSDT: 45886 candles -> data/ohlcv_v5/ZENUSDT.pt
+  ZEREBROUSDT: 9879 candles -> data/ohlcv_v5/ZEREBROUSDT.pt
+  ZETAUSDT: 17924 candles -> data/ohlcv_v5/ZETAUSDT.pt
+  ZILUSDT: 49700 candles -> data/ohlcv_v5/ZILUSDT.pt
+  ZKJUSDT: 6739 candles -> data/ohlcv_v5/ZKJUSDT.pt
+  ZKUSDT: 14658 candles -> data/ohlcv_v5/ZKUSDT.pt
+  ZORAUSDT: 4986 candles -> data/ohlcv_v5/ZORAUSDT.pt
+  ZROUSDT: 14582 candles -> data/ohlcv_v5/ZROUSDT.pt
+  ZRXUSDT: 49556 candles -> data/ohlcv_v5/ZRXUSDT.pt
+
+Done. 432 files in data/ohlcv_v5
+[2026-02-18 04:43:17]   Conversion complete: 432 .pt files
+[2026-02-18 04:43:17] 
+[2026-02-18 04:43:17] === Data Preparation Complete ===
+[2026-02-18 04:43:17]   Parquets:  432 files in data/raw/1h/
+[2026-02-18 04:43:17]   Tensors:   432 files in data/ohlcv_v5/
+[2026-02-18 04:43:17]   Size:      174M
+[2026-02-18 04:43:17] 
+[2026-02-18 04:43:17] Next: copy data/ohlcv_v5/ to H100 and run ./scripts/train_v5_pipeline.sh --skip-download --start-phase=2
+es -> data/ohlcv_v5/PIXELUSDT.pt
+  PLAYUSDT: 4843 candles -> data/ohlcv_v5/PLAYUSDT.pt
+  PLUMEUSDT: 8008 candles -> data/ohlcv_v5/PLUMEUSDT.pt
+  PNUTUSDT: 11128 candles -> data/ohlcv_v5/PNUTUSDT.pt
+  POLUSDT: 12544 candles -> data/ohlcv_v5/POLUSDT.pt
+  POLYXUSDT: 20330 candles -> data/ohlcv_v5/POLYXUSDT.pt
+  POPCATUSDT: 13072 candles -> data/ohlcv_v5/POPCATUSDT.pt
+  PORTALUSDT: 17270 candles -> data/ohlcv_v5/PORTALUSDT.pt
+  POWRUSDT: 20282 candles -> data/ohlcv_v5/POWRUSDT.pt
+  PROMPTUSDT: 7510 candles -> data/ohlcv_v5/PROMPTUSDT.pt
+  PROMUSDT: 9568 candles -> data/ohlcv_v5/PROMUSDT.pt
+  PROVEUSDT: 4716 candles -> data/ohlcv_v5/PROVEUSDT.pt
+  PUFFERUSDT: 6212 candles -> data/ohlcv_v5/PUFFERUSDT.pt
+  PUMPBTCUSDT: 5995 candles -> data/ohlcv_v5/PUMPBTCUSDT.pt
+  PUMPUSDT: 5349 candles -> data/ohlcv_v5/PUMPUSDT.pt
+  PUNDIXUSDT: 7051 candles -> data/ohlcv_v5/PUNDIXUSDT.pt
+  PYTHUSDT: 19646 candles -> data/ohlcv_v5/PYTHUSDT.pt
+  QNTUSDT: 29211 candles -> data/ohlcv_v5/QNTUSDT.pt
+  QTUMUSDT: 52557 candles -> data/ohlcv_v5/QTUMUSDT.pt
+  RAREUSDT: 13240 candles -> data/ohlcv_v5/RAREUSDT.pt
+  RAYSOLUSDT: 10433 candles -> data/ohlcv_v5/RAYSOLUSDT.pt
+  RDNTUSDT: 25193 candles -> data/ohlcv_v5/RDNTUSDT.pt
+  REDUSDT: 8365 candles -> data/ohlcv_v5/REDUSDT.pt
+  RENDERUSDT: 13723 candles -> data/ohlcv_v5/RENDERUSDT.pt
+  RESOLVUSDT: 6063 candles -> data/ohlcv_v5/RESOLVUSDT.pt
+  REZUSDT: 15807 candles -> data/ohlcv_v5/REZUSDT.pt
+  RIFUSDT: 20416 candles -> data/ohlcv_v5/RIFUSDT.pt
+  RLCUSDT: 48670 candles -> data/ohlcv_v5/RLCUSDT.pt
+  RONINUSDT: 17832 candles -> data/ohlcv_v5/RONINUSDT.pt
+  ROSEUSDT: 36238 candles -> data/ohlcv_v5/ROSEUSDT.pt
+  RPLUSDT: 12640 candles -> data/ohlcv_v5/RPLUSDT.pt
+  RSRUSDT: 46750 candles -> data/ohlcv_v5/RSRUSDT.pt
+  RUNEUSDT: 47830 candles -> data/ohlcv_v5/RUNEUSDT.pt
+  RVNUSDT: 43702 candles -> data/ohlcv_v5/RVNUSDT.pt
+  SAFEUSDT: 11536 candles -> data/ohlcv_v5/SAFEUSDT.pt
+  SAGAUSDT: 16314 candles -> data/ohlcv_v5/SAGAUSDT.pt
+  SAHARAUSDT: 5681 candles -> data/ohlcv_v5/SAHARAUSDT.pt
+  SANDUSDT: 44398 candles -> data/ohlcv_v5/SANDUSDT.pt
+  SANTOSUSDT: 11463 candles -> data/ohlcv_v5/SANTOSUSDT.pt
+  SAPIENUSDT: 4355 candles -> data/ohlcv_v5/SAPIENUSDT.pt
+  SCRTUSDT: 10889 candles -> data/ohlcv_v5/SCRTUSDT.pt
+  SCRUSDT: 11611 candles -> data/ohlcv_v5/SCRUSDT.pt
+  SEIUSDT: 21986 candles -> data/ohlcv_v5/SEIUSDT.pt
+  SFPUSDT: 43678 candles -> data/ohlcv_v5/SFPUSDT.pt
+  SHELLUSDT: 8771 candles -> data/ohlcv_v5/SHELLUSDT.pt
+  SIGNUSDT: 7098 candles -> data/ohlcv_v5/SIGNUSDT.pt
+  SIRENUSDT: 7988 candles -> data/ohlcv_v5/SIRENUSDT.pt
+  SKLUSDT: 45550 candles -> data/ohlcv_v5/SKLUSDT.pt
+  SKYAIUSDT: 6739 candles -> data/ohlcv_v5/SKYAIUSDT.pt
+  SLPUSDT: 5033 candles -> data/ohlcv_v5/SLPUSDT.pt
+  SNXUSDT: 48334 candles -> data/ohlcv_v5/SNXUSDT.pt
+  SOLUSDT: 47590 candles -> data/ohlcv_v5/SOLUSDT.pt
+  SOLVUSDT: 9520 candles -> data/ohlcv_v5/SOLVUSDT.pt
+  SONICUSDT: 9742 candles -> data/ohlcv_v5/SONICUSDT.pt
+  SOONUSDT: 6500 candles -> data/ohlcv_v5/SOONUSDT.pt
+  SOPHUSDT: 6376 candles -> data/ohlcv_v5/SOPHUSDT.pt
+  SPELLUSDT: 30257 candles -> data/ohlcv_v5/SPELLUSDT.pt
+  SPKUSDT: 5900 candles -> data/ohlcv_v5/SPKUSDT.pt
+  SPXUSDT: 10432 candles -> data/ohlcv_v5/SPXUSDT.pt
+  SQDUSDT: 6040 candles -> data/ohlcv_v5/SQDUSDT.pt
+  SSVUSDT: 26153 candles -> data/ohlcv_v5/SSVUSDT.pt
+  STEEMUSDT: 19982 candles -> data/ohlcv_v5/STEEMUSDT.pt
+  STGUSDT: 30545 candles -> data/ohlcv_v5/STGUSDT.pt
+  STORJUSDT: 47542 candles -> data/ohlcv_v5/STORJUSDT.pt
+  STOUSDT: 7478 candles -> data/ohlcv_v5/STOUSDT.pt
+  STRKUSDT: 17484 candles -> data/ohlcv_v5/STRKUSDT.pt
+  STXUSDT: 26223 candles -> data/ohlcv_v5/STXUSDT.pt
+  SUIUSDT: 24517 candles -> data/ohlcv_v5/SUIUSDT.pt
+  SUNUSDT: 13071 candles -> data/ohlcv_v5/SUNUSDT.pt
+  SUPERUSDT: 19552 candles -> data/ohlcv_v5/SUPERUSDT.pt
+  SUSDT: 9547 candles -> data/ohlcv_v5/SUSDT.pt
+  SUSHIUSDT: 47830 candles -> data/ohlcv_v5/SUSHIUSDT.pt
+  SWARMSUSDT: 9760 candles -> data/ohlcv_v5/SWARMSUSDT.pt
+  SXTUSDT: 7004 candles -> data/ohlcv_v5/SXTUSDT.pt
+  SYNUSDT: 13216 candles -> data/ohlcv_v5/SYNUSDT.pt
+  SYRUPUSDT: 6884 candles -> data/ohlcv_v5/SYRUPUSDT.pt
+  SYSUSDT: 13144 candles -> data/ohlcv_v5/SYSUSDT.pt
+  TACUSDT: 5226 candles -> data/ohlcv_v5/TACUSDT.pt
+  TAGUSDT: 4985 candles -> data/ohlcv_v5/TAGUSDT.pt
+  TAIKOUSDT: 6040 candles -> data/ohlcv_v5/TAIKOUSDT.pt
+  TAOUSDT: 16262 candles -> data/ohlcv_v5/TAOUSDT.pt
+  TAUSDT: 5085 candles -> data/ohlcv_v5/TAUSDT.pt
+  THETAUSDT: 50229 candles -> data/ohlcv_v5/THETAUSDT.pt
+  THEUSDT: 10744 candles -> data/ohlcv_v5/THEUSDT.pt
+  TIAUSDT: 20171 candles -> data/ohlcv_v5/TIAUSDT.pt
+  TLMUSDT: 25337 candles -> data/ohlcv_v5/TLMUSDT.pt
+  TNSRUSDT: 16332 candles -> data/ohlcv_v5/TNSRUSDT.pt
+  TONUSDT: 17248 candles -> data/ohlcv_v5/TONUSDT.pt
+  TOWNSUSDT: 4718 candles -> data/ohlcv_v5/TOWNSUSDT.pt
+  TRBUSDT: 47854 candles -> data/ohlcv_v5/TRBUSDT.pt
+  TREEUSDT: 4887 candles -> data/ohlcv_v5/TREEUSDT.pt
+  TRUMPUSDT: 9496 candles -> data/ohlcv_v5/TRUMPUSDT.pt
+  TRUUSDT: 25889 candles -> data/ohlcv_v5/TRUUSDT.pt
+  TRXUSDT: 53421 candles -> data/ohlcv_v5/TRXUSDT.pt
+  TSTUSDT: 8968 candles -> data/ohlcv_v5/TSTUSDT.pt
+  TURBOUSDT: 15085 candles -> data/ohlcv_v5/TURBOUSDT.pt
+  TUSDT: 26704 candles -> data/ohlcv_v5/TUSDT.pt
+  TUTUSDT: 8036 candles -> data/ohlcv_v5/TUTUSDT.pt
+  TWTUSDT: 20102 candles -> data/ohlcv_v5/TWTUSDT.pt
+  UMAUSDT: 24353 candles -> data/ohlcv_v5/UMAUSDT.pt
+  UNIUSDT: 47494 candles -> data/ohlcv_v5/UNIUSDT.pt
+  USDCUSDT: 25764 candles -> data/ohlcv_v5/USDCUSDT.pt
+  USELESSUSDT: 4480 candles -> data/ohlcv_v5/USELESSUSDT.pt
+  USTCUSDT: 19528 candles -> data/ohlcv_v5/USTCUSDT.pt
+  USUALUSDT: 10240 candles -> data/ohlcv_v5/USUALUSDT.pt
+  VANAUSDT: 10287 candles -> data/ohlcv_v5/VANAUSDT.pt
+  VANRYUSDT: 16955 candles -> data/ohlcv_v5/VANRYUSDT.pt
+  VELODROMEUSDT: 10356 candles -> data/ohlcv_v5/VELODROMEUSDT.pt
+  VELVETUSDT: 5227 candles -> data/ohlcv_v5/VELVETUSDT.pt
+  VETUSDT: 52701 candles -> data/ohlcv_v5/VETUSDT.pt
+  VICUSDT: 8220 candles -> data/ohlcv_v5/VICUSDT.pt
+  VINEUSDT: 9355 candles -> data/ohlcv_v5/VINEUSDT.pt
+  VIRTUALUSDT: 10432 candles -> data/ohlcv_v5/VIRTUALUSDT.pt
+  VTHOUSDT: 9403 candles -> data/ohlcv_v5/VTHOUSDT.pt
+  VVVUSDT: 9236 candles -> data/ohlcv_v5/VVVUSDT.pt
+  WALUSDT: 7861 candles -> data/ohlcv_v5/WALUSDT.pt
+  WAXPUSDT: 20486 candles -> data/ohlcv_v5/WAXPUSDT.pt
+  WCTUSDT: 7410 candles -> data/ohlcv_v5/WCTUSDT.pt
+  WIFUSDT: 18278 candles -> data/ohlcv_v5/WIFUSDT.pt
+  WLDUSDT: 22553 candles -> data/ohlcv_v5/WLDUSDT.pt
+  WOOUSDT: 33890 candles -> data/ohlcv_v5/WOOUSDT.pt
+  WUSDT: 16453 candles -> data/ohlcv_v5/WUSDT.pt
+  XAIUSDT: 18495 candles -> data/ohlcv_v5/XAIUSDT.pt
+  XLMUSDT: 53301 candles -> data/ohlcv_v5/XLMUSDT.pt
+  XMRUSDT: 52965 candles -> data/ohlcv_v5/XMRUSDT.pt
+  XNYUSDT: 4529 candles -> data/ohlcv_v5/XNYUSDT.pt
+  XRPUSDT: 53637 candles -> data/ohlcv_v5/XRPUSDT.pt
+  XTZUSDT: 52893 candles -> data/ohlcv_v5/XTZUSDT.pt
+  XVGUSDT: 23009 candles -> data/ohlcv_v5/XVGUSDT.pt
+  XVSUSDT: 25011 candles -> data/ohlcv_v5/XVSUSDT.pt
+  YFIUSDT: 47926 candles -> data/ohlcv_v5/YFIUSDT.pt
+  YGGUSDT: 22273 candles -> data/ohlcv_v5/YGGUSDT.pt
+  ZECUSDT: 52917 candles -> data/ohlcv_v5/ZECUSDT.pt
+  ZENUSDT: 45886 candles -> data/ohlcv_v5/ZENUSDT.pt
+  ZEREBROUSDT: 9879 candles -> data/ohlcv_v5/ZEREBROUSDT.pt
+  ZETAUSDT: 17924 candles -> data/ohlcv_v5/ZETAUSDT.pt
+  ZILUSDT: 49700 candles -> data/ohlcv_v5/ZILUSDT.pt
+  ZKJUSDT: 6739 candles -> data/ohlcv_v5/ZKJUSDT.pt
+  ZKUSDT: 14658 candles -> data/ohlcv_v5/ZKUSDT.pt
+  ZORAUSDT: 4986 candles -> data/ohlcv_v5/ZORAUSDT.pt
+  ZROUSDT: 14582 candles -> data/ohlcv_v5/ZROUSDT.pt
+  ZRXUSDT: 49556 candles -> data/ohlcv_v5/ZRXUSDT.pt
+
+Done. 432 files in data/ohlcv_v5
+[2026-02-18 04:43:17]   Conversion complete: 432 .pt files
+[2026-02-18 04:43:17] 
+[2026-02-18 04:43:17] === Data Preparation Complete ===
+[2026-02-18 04:43:17]   Parquets:  432 files in data/raw/1h/
+[2026-02-18 04:43:17]   Tensors:   432 files in data/ohlcv_v5/
+[2026-02-18 04:43:17]   Size:      174M
+[2026-02-18 04:43:17] 
+[2026-02-18 04:43:17] Next: copy data/ohlcv_v5/ to H100 and run ./scripts/train_v5_pipeline.sh --skip-download --start-phase=2

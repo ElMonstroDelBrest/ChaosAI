@@ -48,6 +48,11 @@ class StrateILightningModule(pl.LightningModule):
 
     def on_train_epoch_end(self):
         self.tokenizer.vqvae.codebook.reset_usage()
+        # FSQ: refresh the `embeddings` buffer (proj_out(grid)) after each epoch
+        # so downstream code (FinJEPA.load_codebook, decode_from_indices) always
+        # has up-to-date 64-dim representations of each discrete code.
+        if self.tokenizer.vqvae._use_fsq:
+            self.tokenizer.vqvae.codebook.sync_embeddings()
 
     def configure_optimizers(self):
         optimizer = AdamW(
