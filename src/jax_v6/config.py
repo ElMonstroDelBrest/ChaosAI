@@ -79,8 +79,8 @@ class DataConfig:
     token_dir: str = "data/tokens_v5/"
     arrayrecord_dir: str = "data/arrayrecord/"
     val_split: float = 0.2
-    num_workers: int = 4
-    prefetch_buffer_size: int = 2
+    num_workers: int = 0  # 0 = auto (os.cpu_count(), capped per host)
+    prefetch_buffer_size: int = 4  # v6e has massive IO bandwidth
 
 
 @dataclass(frozen=True)

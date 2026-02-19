@@ -34,7 +34,7 @@ def test_forward_e2e(jepa):
     tokens = torch.randint(0, 64, (4, 16))
     out = jepa(tokens)
 
-    expected_keys = {"loss", "invariance", "variance", "covariance", "mask_ratio", "n_targets"}
+    expected_keys = {"loss", "invariance", "variance", "covariance", "cfm_loss", "mask_ratio", "n_targets"}
     assert set(out.keys()) == expected_keys
 
     for k, v in out.items():

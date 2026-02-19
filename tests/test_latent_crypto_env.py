@@ -242,14 +242,16 @@ class TestLatentCryptoEnv:
         env = LatentCryptoEnv(buffer=buf, config=config)
         obs, _ = env.reset(seed=42)
 
-        # future_mean_t, future_std_t should be zeroed (indices 128..384)
+        # future_mean_t, future_std_t should be near-zero (sigmoid gate ≈ 4.5e-5)
         d = 128  # d_model in test entries
         future_block = obs[d:3*d]  # future_mean_t + future_std_t
-        assert np.all(future_block == 0.0), "Noise gate should zero future latents"
+        assert np.all(np.abs(future_block) < 1e-3), \
+            "Noise gate should attenuate future latents to near-zero"
 
-        # close_stats should be zeroed too
+        # close_stats should be near-zero too
         close_stats = obs[3*d:3*d + 8*3]
-        assert np.all(close_stats == 0.0), "Noise gate should zero close_stats"
+        assert np.all(np.abs(close_stats) < 1e-3), \
+            "Noise gate should attenuate close_stats to near-zero"
 
 
 # ---------------------------------------------------------------------------

@@ -4,16 +4,20 @@ Pipeline:
   GCS bucket (ArrayRecord shards)
     -> grain.ArrayRecordDataSource
     -> grain.IndexSampler(shard_options=grain.ShardByJaxProcess())
-    -> grain.DataLoader(worker_count=4, prefetch_buffer_size=2)
+    -> grain.DataLoader(worker_count=auto, prefetch_buffer_size=auto)
     -> dict of jnp.array per batch
 
-Each host (4 VMs on v4-32) reads different shards automatically.
+Each host reads different shards automatically (ShardByJaxProcess).
 Block masks are pre-computed in the transform (numpy, avoids JIT issues).
 Val split is deterministic by hash of pair_name (reproducible).
+
+Worker count is auto-tuned: min(os.cpu_count(), 32) to saturate v6e IO.
 """
 
 import hashlib
 import json
+import logging
+import os
 from pathlib import Path
 
 import grain.python as grain
@@ -21,6 +25,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
+
+log = logging.getLogger(__name__)
 
 from ..masking import generate_batch_masks
 
@@ -112,6 +118,21 @@ class NumpyBatch(grain.BatchTransform):
         super().__init__(batch_size=batch_size, drop_remainder=True)
 
 
+def _auto_worker_count(requested: int) -> int:
+    """Resolve worker_count: 0 means auto-detect from os.cpu_count().
+
+    Capped at 32 to avoid over-subscribing (diminishing returns past that).
+    Minimum 2 to keep the pipeline overlapping IO and compute.
+    """
+    if requested > 0:
+        return requested
+    cpus = os.cpu_count() or 4
+    count = min(cpus, 32)
+    count = max(count, 2)
+    log.info("Grain worker_count auto-detected: %d (cpu_count=%s)", count, cpus)
+    return count
+
+
 def create_dataloader(
     arrayrecord_dir: str,
     split: str = "train",
@@ -121,8 +142,8 @@ def create_dataloader(
     block_size_min: int = 4,
     block_size_max: int = 8,
     val_ratio: float = 0.2,
-    worker_count: int = 4,
-    prefetch_buffer_size: int = 2,
+    worker_count: int = 0,
+    prefetch_buffer_size: int = 4,
     seed: int = 42,
 ) -> grain.DataLoader:
     """Create a Grain DataLoader for ArrayRecord shards.
@@ -136,13 +157,15 @@ def create_dataloader(
         block_size_min: Min block size for masking.
         block_size_max: Max block size for masking.
         val_ratio: Fraction of pairs used for validation.
-        worker_count: Number of parallel Grain workers.
+        worker_count: Number of parallel Grain workers (0 = auto from cpu_count).
         prefetch_buffer_size: Prefetch buffer size.
         seed: Random seed for sampler.
 
     Returns:
         grain.DataLoader yielding batched dicts of numpy arrays.
     """
+    worker_count = _auto_worker_count(worker_count)
+
     ar_dir = Path(arrayrecord_dir)
     manifest_path = ar_dir / "manifest.json"
 
