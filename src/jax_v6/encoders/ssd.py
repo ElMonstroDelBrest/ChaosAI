@@ -130,6 +130,10 @@ def chunked_ssd(
     def process_chunk(x_ch, dt_ch, B_ch, C_ch, cs_ch, A_h, h_init):
         """Process one chunk for one head.
 
+        Uses pairwise decay formulation for numerical stability:
+          L[i,j] = sum_n C[i,n] * dt[j] * B[j,n] * exp(A[n] * (cs[i] - cs[j]))
+        Since A < 0 and cs[i] >= cs[j] for i >= j, exp term is always <= 1.
+
         Args:
             x_ch: (Cs, P)
             dt_ch: (Cs,)
@@ -143,52 +147,60 @@ def chunked_ssd(
             y: (Cs, P) output
             h_final: (N, P) state for next chunk
         """
-        # decay_factors[t, n] = A_h[n] * cs_ch[t]
-        decay = A_h[None, :] * cs_ch[:, None]  # (Cs, N)
+        # Pairwise decay: cs_diff[i, j] = cs[i] - cs[j]
+        cs_diff = cs_ch[:, None] - cs_ch[None, :]  # (Cs, Cs)
 
-        # Log-sum-exp normalization for numerical stability
-        # log_B = -A * cs (positive, can be large)
-        log_B = -decay  # (Cs, N) — positive values
-        offset = jnp.max(log_B, axis=0, keepdims=True)  # (1, N)
+        # decay_pairwise[i, j, n] = A[n] * (cs[i] - cs[j])
+        # For i >= j: A * (positive) = negative, so exp <= 1. Always stable.
+        # For i < j: positive, but masked out by tril.
+        decay_pairwise = A_h[None, None, :] * cs_diff[:, :, None]  # (Cs, Cs, N)
 
-        # C_hat[t, n] = C[t, n] * exp(A*cs[t] + offset[n])
-        C_hat = C_ch * jnp.exp(decay + offset)  # (Cs, N)
+        # Clamp for i < j positions (will be masked, but avoid NaN in exp)
+        decay_pairwise = jnp.minimum(decay_pairwise, 0.0)
+        exp_decay = jnp.exp(decay_pairwise)  # (Cs, Cs, N) — all <= 1
 
-        # B_hat[t, n] = dt[t] * B[t, n] * exp(-A*cs[t] - offset[n])
-        B_hat = (dt_ch[:, None] * B_ch) * jnp.exp(-decay - offset)  # (Cs, N)
+        # dt_B[j, n] = dt[j] * B[j, n]
+        dt_B = dt_ch[:, None] * B_ch  # (Cs, N)
 
-        # L = tril(C_hat @ B_hat^T) — (Cs, Cs) MXU matmul!
-        L_mat = jnp.tril(C_hat @ B_hat.T)  # (Cs, Cs)
+        # L[i, j] = sum_n C[i, n] * dt_B[j, n] * exp_decay[i, j, n]
+        L_mat = jnp.einsum("in,jn,ijn->ij", C_ch, dt_B, exp_decay)
+        L_mat = jnp.tril(L_mat)  # enforce causal
 
-        # y_intra = L @ x — (Cs, P) MXU matmul!
+        # y_intra = L @ x — (Cs, P) matmul
         y_intra = L_mat @ x_ch  # (Cs, P)
 
         # Contribution from previous chunk's state h_init
-        # y_from_state[t] = C_hat_raw[t] @ h_init where C_hat_raw uses no offset
-        C_hat_raw = C_ch * jnp.exp(decay)  # (Cs, N) — stable since decay <= 0
+        # y_from_state[t] = C[t] @ (exp(A * cs[t]) * h_init)
+        decay = A_h[None, :] * cs_ch[:, None]  # (Cs, N) — negative, stable
+        C_hat_raw = C_ch * jnp.exp(decay)  # (Cs, N) — exp(negative) <= 1
         y_from_state = C_hat_raw @ h_init  # (Cs, P)
 
         y = y_intra + y_from_state
 
-        # Final state for this chunk: h_final = decay_end * h_init + sum_t(B_hat_raw[t] * x[t])
-        decay_end = jnp.exp(A_h * cs_ch[-1])  # (N,) — exp(negative * positive) <= 1
+        # Final state: h_final = exp(A*cs_end) * h_init + sum_t(...)
+        decay_end = jnp.exp(A_h * cs_ch[-1])  # (N,) — stable (exp negative)
         h_final = decay_end[:, None] * h_init  # (N, P)
 
-        # Accumulate: each timestep t contributes B_hat_end[t] * x[t]
-        # where B_hat_end[t] = dt[t] * B[t] * exp(A * (cs_end - cs[t]))
-        # = dt[t] * B[t] * exp(A * cs_end) * exp(-A * cs[t])
-        # For stability, use the same offset trick
-        residual_decay = A_h[None, :] * (cs_ch[-1] - cs_ch)[:, None]  # (Cs, N) — negative * positive = negative
+        # Accumulate: B_hat_end[t] = dt[t]*B[t] * exp(A*(cs_end - cs[t]))
+        residual_decay = A_h[None, :] * (cs_ch[-1] - cs_ch)[:, None]  # (Cs, N)
+        # cs_end - cs[t] >= 0 and A < 0, so residual_decay <= 0. Stable.
         B_hat_end = (dt_ch[:, None] * B_ch) * jnp.exp(residual_decay)  # (Cs, N)
         h_final = h_final + B_hat_end.T @ x_ch  # (N, P)
 
         return y, h_final
 
     # Vectorize over heads and batch
-    # vmap over H (head dimension)
+    # vmap over H (head dimension):
+    #   x_ch:  (Cs, H, P) -> axis 1    -> (Cs, P)
+    #   dt_ch: (Cs, H)    -> axis 1    -> (Cs,)
+    #   B_ch:  (Cs, H, N) -> axis 1    -> (Cs, N)
+    #   C_ch:  (Cs, H, N) -> axis 1    -> (Cs, N)
+    #   cs_ch: (Cs, H)    -> axis 1    -> (Cs,)
+    #   A:     (H, N)     -> axis 0    -> (N,)
+    #   h:     (H, N, P)  -> axis 0    -> (N, P)
     process_chunk_vH = jax.vmap(
         process_chunk,
-        in_axes=(1, 0, 1, 1, 0, 0, 0),  # x:(Cs,H,P)->P=1, dt:(Cs,H)->0, etc.
+        in_axes=(1, 1, 1, 1, 1, 0, 0),
         out_axes=(1, 0),  # y:(Cs,H,P)->1, h:(H,N,P)->0
     )
 
