@@ -1,24 +1,40 @@
-"""GSPMD sharding setup for TPU v4-32 (32 chips).
+"""GSPMD sharding setup — auto-detects TPU topology.
 
-Pure Data Parallelism: model 654 MB << 32 GB HBM per chip.
+Pure Data Parallelism: model ~654 MB << HBM per chip.
 Batch axis is sharded across chips, params are replicated.
 XLA auto-inserts All-Reduce for gradient synchronization.
 
-Global batch 1024 / 32 chips = 32 local batch per chip.
+Supported topologies (auto-detected via jax.devices()):
+  - TPU v6e-8  (Trillium): 8 chips, ~32 GB HBM each
+  - TPU v4-32: 32 chips, ~32 GB HBM each
+  - CPU/GPU:   falls back to available devices
 """
 
+import logging
 import jax
 import jax.numpy as jnp
 from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
 
+log = logging.getLogger(__name__)
+
 
 def create_mesh() -> Mesh:
-    """Create a 1D mesh over all available TPU chips.
+    """Create a 1D mesh over all available TPU/GPU/CPU devices.
 
-    For v4-32: 32 chips arranged in a single 'batch' axis.
-    For CPU/GPU dev: falls back to available devices.
+    Auto-detects the device count and platform. For pure data parallelism
+    a flat 1D mesh is optimal (model fits entirely in one chip's HBM).
     """
     devices = jax.devices()
+    n_devices = len(devices)
+    platform = devices[0].platform if devices else "cpu"
+    log.info(
+        "GSPMD Mesh: %d %s device(s) — pure data parallelism (batch axis)",
+        n_devices, platform.upper(),
+    )
+    if n_devices > 1:
+        log.info(
+            "  Local batch per chip: global_batch / %d", n_devices,
+        )
     return Mesh(devices, axis_names=("batch",))
 
 
