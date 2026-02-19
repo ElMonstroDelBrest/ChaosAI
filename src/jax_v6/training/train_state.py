@@ -69,9 +69,13 @@ def create_optimizer(
         ],
         boundaries=[warmup_steps],
     )
-    tx = optax.adamw(learning_rate=schedule, weight_decay=weight_decay)
+    tx = optax.adamw(learning_rate=schedule, weight_decay=weight_decay, b2=0.95)
     if grad_clip > 0.0:
-        tx = optax.chain(optax.clip_by_global_norm(grad_clip), tx)
+        tx = optax.chain(
+            optax.clip_by_global_norm(grad_clip),
+            optax.zero_nans(),
+            tx,
+        )
     return tx
 
 
