@@ -61,6 +61,7 @@ state = create_train_state(
     weight_decay=config.training.weight_decay,
     tau_start=config.ema.tau_start,
     grad_clip=config.training.grad_clip,
+    n_restarts=config.training.n_restarts,
 )
 state = shard_params(state, mesh)
 n_params = sum(x.size for x in jax.tree.leaves(state.params))

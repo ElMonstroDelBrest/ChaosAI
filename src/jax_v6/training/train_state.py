@@ -60,14 +60,33 @@ def create_optimizer(
     warmup_steps: int = 1000,
     total_steps: int = 100000,
     grad_clip: float = 1.0,
+    n_restarts: int = 4,
 ) -> optax.GradientTransformation:
-    """AdamW with linear warmup + cosine decay schedule + gradient clipping."""
+    """AdamW with SGDR warm restarts + gradient clipping.
+
+    Warm restarts periodically bump the LR back up, helping the optimizer
+    escape narrow local minima (the likely cause of NaN at step 2750).
+    Each cycle is longer than the previous (T_mult=2): if the first cycle
+    is 100 steps, the next is 200, then 400, etc.
+    """
+    train_steps = total_steps - warmup_steps
+
+    # SGDR: cosine cycles with increasing period (T_mult=2)
+    # Cycle lengths: T, 2T, 4T, ... = T * (2^n_restarts - 1) = train_steps
+    first_cycle = train_steps // (2 ** n_restarts - 1) if n_restarts > 0 else train_steps
+
+    cycle_schedules = []
+    cycle_boundaries = [warmup_steps]
+    cycle_len = max(first_cycle, 1)
+    for i in range(n_restarts):
+        cycle_schedules.append(optax.cosine_decay_schedule(lr, cycle_len))
+        if i < n_restarts - 1:
+            cycle_boundaries.append(cycle_boundaries[-1] + cycle_len)
+        cycle_len *= 2
+
     schedule = optax.join_schedules(
-        schedules=[
-            optax.linear_schedule(0.0, lr, warmup_steps),
-            optax.cosine_decay_schedule(lr, total_steps - warmup_steps),
-        ],
-        boundaries=[warmup_steps],
+        schedules=[optax.linear_schedule(0.0, lr, warmup_steps)] + cycle_schedules,
+        boundaries=cycle_boundaries,
     )
     tx = optax.adamw(learning_rate=schedule, weight_decay=weight_decay, b2=0.95)
     if grad_clip > 0.0:
@@ -89,6 +108,7 @@ def create_train_state(
     total_steps: int = 100000,
     tau_start: float = 0.996,
     grad_clip: float = 1.0,
+    n_restarts: int = 4,
 ) -> FinJEPATrainState:
     """Initialize FinJEPATrainState with model params and EMA copy.
 
@@ -121,7 +141,7 @@ def create_train_state(
     # EMA target: deep copy of context_encoder params
     target_params = jax.tree.map(lambda x: x.copy(), params["context_encoder"])
 
-    optimizer = create_optimizer(lr, weight_decay, warmup_steps, total_steps, grad_clip)
+    optimizer = create_optimizer(lr, weight_decay, warmup_steps, total_steps, grad_clip, n_restarts)
 
     return FinJEPATrainState.create(
         apply_fn=model.apply,
