@@ -153,17 +153,17 @@ def chunked_ssd(
         # decay_pairwise[i, j, n] = A[n] * (cs[i] - cs[j])
         # For i >= j: A * (positive) = negative, so exp <= 1. Always stable.
         # For i < j: positive, but masked out by tril.
+        # bf16: halves memory for the (Cs, Cs, N) tensor (~2× savings)
         decay_pairwise = A_h[None, None, :] * cs_diff[:, :, None]  # (Cs, Cs, N)
-
-        # Clamp for i < j positions (will be masked, but avoid NaN in exp)
         decay_pairwise = jnp.minimum(decay_pairwise, 0.0)
-        exp_decay = jnp.exp(decay_pairwise)  # (Cs, Cs, N) — all <= 1
+        exp_decay = jnp.exp(decay_pairwise).astype(jnp.bfloat16)  # (Cs, Cs, N) bf16
 
         # dt_B[j, n] = dt[j] * B[j, n]
-        dt_B = dt_ch[:, None] * B_ch  # (Cs, N)
+        dt_B = (dt_ch[:, None] * B_ch).astype(jnp.bfloat16)  # (Cs, N) bf16
 
         # L[i, j] = sum_n C[i, n] * dt_B[j, n] * exp_decay[i, j, n]
-        L_mat = jnp.einsum("in,jn,ijn->ij", C_ch, dt_B, exp_decay)
+        C_bf16 = C_ch.astype(jnp.bfloat16)
+        L_mat = jnp.einsum("in,jn,ijn->ij", C_bf16, dt_B, exp_decay)
         L_mat = jnp.tril(L_mat)  # enforce causal
 
         # y_intra = L @ x — (Cs, P) matmul
@@ -172,8 +172,8 @@ def chunked_ssd(
         # Contribution from previous chunk's state h_init
         # y_from_state[t] = C[t] @ (exp(A * cs[t]) * h_init)
         decay = A_h[None, :] * cs_ch[:, None]  # (Cs, N) — negative, stable
-        C_hat_raw = C_ch * jnp.exp(decay)  # (Cs, N) — exp(negative) <= 1
-        y_from_state = C_hat_raw @ h_init  # (Cs, P)
+        C_hat_raw = (C_ch * jnp.exp(decay)).astype(jnp.bfloat16)  # (Cs, N) bf16
+        y_from_state = C_hat_raw @ h_init.astype(jnp.bfloat16)  # (Cs, P)
 
         y = y_intra + y_from_state
 
@@ -183,9 +183,8 @@ def chunked_ssd(
 
         # Accumulate: B_hat_end[t] = dt[t]*B[t] * exp(A*(cs_end - cs[t]))
         residual_decay = A_h[None, :] * (cs_ch[-1] - cs_ch)[:, None]  # (Cs, N)
-        # cs_end - cs[t] >= 0 and A < 0, so residual_decay <= 0. Stable.
-        B_hat_end = (dt_ch[:, None] * B_ch) * jnp.exp(residual_decay)  # (Cs, N)
-        h_final = h_final + B_hat_end.T @ x_ch  # (N, P)
+        B_hat_end = ((dt_ch[:, None] * B_ch) * jnp.exp(residual_decay)).astype(jnp.bfloat16)
+        h_final = h_final + (B_hat_end.T @ x_ch.astype(jnp.bfloat16)).astype(x_ch.dtype)
 
         return y, h_final
 

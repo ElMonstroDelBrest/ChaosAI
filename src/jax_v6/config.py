@@ -12,20 +12,21 @@ from dacite import from_dict, Config as DaciteConfig
 
 @dataclass(frozen=True)
 class Mamba2Config:
-    d_model: int = 128
+    d_model: int = 1024
     d_state: int = 16
-    n_layers: int = 6
-    n_heads: int = 2
-    expand_factor: int = 2
+    n_layers: int = 24
+    n_heads: int = 16      # head_dim = d_model*expand/n_heads = 1024*2/16 = 128 = 1 MXU tile
+    expand_factor: int = 2  # d_inner = 2048
     conv_kernel: int = 4
     encoder_type: str = "mamba"
     exo_clock: bool = True
     chunk_size: int = 128  # SSD chunk size — 128 fills one MXU tile exactly
+    use_remat: bool = False  # True for v6e (31 GB HBM), False for v5p (95 GB)
 
 
 @dataclass(frozen=True)
 class PredictorConfig:
-    hidden_dim: int = 256
+    hidden_dim: int = 2048
     n_layers: int = 2
     dropout: float = 0.1
     z_dim: int = 32
@@ -70,8 +71,9 @@ class TrainingConfig:
     weight_decay: float = 1e-2
     max_epochs: int = 100
     warmup_epochs: int = 10
-    batch_size: int = 1024  # Global batch across 32 TPU chips
+    batch_size: int = 8192  # Global batch — 1024/chip on v5p-8 (184M params, ~40 GB < 95 GB HBM)
     precision: str = "bf16"
+    grad_clip: float = 1.0  # Max gradient norm (0.0 = disabled)
 
 
 @dataclass(frozen=True)
@@ -80,7 +82,7 @@ class DataConfig:
     arrayrecord_dir: str = "data/arrayrecord/"
     val_split: float = 0.2
     num_workers: int = 0  # 0 = auto (os.cpu_count(), capped per host)
-    prefetch_buffer_size: int = 4  # v6e has massive IO bandwidth
+    prefetch_buffer_size: int = 128  # >= num_threads to saturate v5p IO
 
 
 @dataclass(frozen=True)

@@ -33,6 +33,7 @@ class Mamba2Encoder(nn.Module):
     conv_kernel: int = 4
     seq_len: int = 128
     chunk_size: int = 128
+    use_remat: bool = False
 
     @staticmethod
     def _sinusoidal_embed(seq_len: int, d_model: int) -> Array:
@@ -123,8 +124,12 @@ class Mamba2Encoder(nn.Module):
         x = x + pos_embed[:, :S, :]
 
         # Pass through Mamba-2 stack with clock conditioning
+        # nn.remat: recompute each layer during backward instead of
+        # storing all SSD intermediates (saves ~6× activation memory).
+        # Disabled on v5p-8 (95 GB HBM) for ~2× speedup.
+        BlockCls = nn.remat(Mamba2Block) if self.use_remat else Mamba2Block
         for i in range(self.n_layers):
-            x = Mamba2Block(
+            x = BlockCls(
                 d_model=self.d_model,
                 d_state=self.d_state,
                 n_heads=self.n_heads,
