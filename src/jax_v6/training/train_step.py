@@ -13,12 +13,13 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import optax
 from jax import Array
 
 from .train_state import FinJEPATrainState, update_target_ema
 
 
-@partial(jax.jit, static_argnums=(2,))
+@partial(jax.jit, static_argnums=(2,), donate_argnums=(0, 1))
 def train_step(
     state: FinJEPATrainState,
     batch: dict[str, Array],
@@ -51,6 +52,9 @@ def train_step(
 
     (loss, outputs), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
 
+    # Track gradient norm before clipping (for monitoring)
+    grad_norm = optax.global_norm(grads)
+
     # Update params via optimizer (GSPMD auto-syncs grads)
     state = state.apply_gradients(grads=grads)
 
@@ -68,15 +72,13 @@ def train_step(
         "cfm_loss": outputs["cfm_loss"],
         "mask_ratio": outputs["mask_ratio"],
         "n_targets": outputs["n_targets"],
-        "lr": state.opt_state.inner_states["0"].inner_state.hyperparams.get(
-            "learning_rate", jnp.float32(0.0)
-        ) if hasattr(state.opt_state, "inner_states") else jnp.float32(0.0),
+        "grad_norm": grad_norm,
     }
 
     return state, metrics
 
 
-@partial(jax.jit, static_argnums=(2,))
+@partial(jax.jit, static_argnums=(2,), donate_argnums=(0, 1))
 def eval_step(
     state: FinJEPATrainState,
     batch: dict[str, Array],

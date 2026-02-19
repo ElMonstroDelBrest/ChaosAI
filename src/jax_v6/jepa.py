@@ -41,6 +41,7 @@ class FinJEPA(nn.Module):
     conv_kernel: int = 4
     seq_len: int = 128
     chunk_size: int = 128
+    use_remat: bool = False
 
     # Predictor config
     pred_hidden_dim: int = 256
@@ -73,6 +74,7 @@ class FinJEPA(nn.Module):
             conv_kernel=config.mamba2.conv_kernel,
             seq_len=config.embedding.seq_len,
             chunk_size=config.mamba2.chunk_size,
+            use_remat=config.mamba2.use_remat,
             pred_hidden_dim=config.predictor.hidden_dim,
             pred_n_layers=config.predictor.n_layers,
             pred_dropout=config.predictor.dropout,
@@ -98,6 +100,7 @@ class FinJEPA(nn.Module):
             conv_kernel=self.conv_kernel,
             seq_len=self.seq_len,
             chunk_size=self.chunk_size,
+            use_remat=self.use_remat,
             name="context_encoder",
         )
 

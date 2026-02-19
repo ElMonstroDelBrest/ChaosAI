@@ -59,8 +59,9 @@ def create_optimizer(
     weight_decay: float = 1e-2,
     warmup_steps: int = 1000,
     total_steps: int = 100000,
+    grad_clip: float = 1.0,
 ) -> optax.GradientTransformation:
-    """AdamW with linear warmup + cosine decay schedule."""
+    """AdamW with linear warmup + cosine decay schedule + gradient clipping."""
     schedule = optax.join_schedules(
         schedules=[
             optax.linear_schedule(0.0, lr, warmup_steps),
@@ -68,7 +69,10 @@ def create_optimizer(
         ],
         boundaries=[warmup_steps],
     )
-    return optax.adamw(learning_rate=schedule, weight_decay=weight_decay)
+    tx = optax.adamw(learning_rate=schedule, weight_decay=weight_decay)
+    if grad_clip > 0.0:
+        tx = optax.chain(optax.clip_by_global_norm(grad_clip), tx)
+    return tx
 
 
 def create_train_state(
@@ -80,6 +84,7 @@ def create_train_state(
     warmup_steps: int = 1000,
     total_steps: int = 100000,
     tau_start: float = 0.996,
+    grad_clip: float = 1.0,
 ) -> FinJEPATrainState:
     """Initialize FinJEPATrainState with model params and EMA copy.
 
@@ -112,7 +117,7 @@ def create_train_state(
     # EMA target: deep copy of context_encoder params
     target_params = jax.tree.map(lambda x: x.copy(), params["context_encoder"])
 
-    optimizer = create_optimizer(lr, weight_decay, warmup_steps, total_steps)
+    optimizer = create_optimizer(lr, weight_decay, warmup_steps, total_steps, grad_clip)
 
     return FinJEPATrainState.create(
         apply_fn=model.apply,

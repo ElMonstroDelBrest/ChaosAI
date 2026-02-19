@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run ArrayRecord conversion + training on TPU VM.
+# Run ArrayRecord conversion + training on TPU VM (v5p-8).
 # Designed to run via nohup on the TPU VM itself.
 set -euo pipefail
 
@@ -9,19 +9,16 @@ exec > "$LOG" 2>&1
 cd "$HOME/Financial_IA"
 source .venv_tpu/bin/activate
 export JAX_ENABLE_X64=1
+export JAX_COMPILATION_CACHE_DIR=/tmp/jax_cache
 
-echo "[$(date -u)] === ArrayRecord Conversion ==="
-python3 scripts/convert_pt_to_arrayrecord.py \
-    --input data/tokens_v5/ \
-    --output data/arrayrecord/ \
-    --seq_len 128
-
-echo "[$(date -u)] === Upload ArrayRecord to GCS ==="
-gsutil -m -q rsync -r data/arrayrecord/ gs://fin-ia-bucket/data/arrayrecord/
+echo "[$(date -u)] === Sync ArrayRecord from GCS ==="
+mkdir -p data/arrayrecord
+gsutil -m rsync -r gs://fin-ia-bucket/data/arrayrecord/ data/arrayrecord/
+echo "[$(date -u)] Synced $(ls data/arrayrecord/*.arrayrecord 2>/dev/null | wc -l) shards"
 
 echo "[$(date -u)] === Training ==="
 python3 -u -c "
-import sys, logging, time
+import sys, logging, time, threading, queue
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 log = logging.getLogger('train')
 
@@ -43,8 +40,8 @@ log.info('Training on %d %s chips', n_devices, jax.devices()[0].platform.upper()
 
 model = FinJEPA.from_config(config)
 
-# Create dummy batch for init (shape inference)
-B = config.training.batch_size // n_devices  # local batch
+# Init with full batch — v5p-8 has 95 GB HBM/chip, no need for tiny batch hack
+B = config.training.batch_size
 S = config.embedding.seq_len
 max_tgt = int(S * 0.5) + 8
 dummy_batch = {
@@ -55,7 +52,7 @@ dummy_batch = {
     'target_positions': jnp.zeros((B, max_tgt), dtype=jnp.int64),
     'target_mask': jnp.ones((B, max_tgt), dtype=jnp.bool_),
 }
-log.info('Init with dummy batch: B=%d, S=%d, max_tgt=%d', B, S, max_tgt)
+log.info('Init with batch: B=%d, S=%d, max_tgt=%d', B, S, max_tgt)
 
 key = jax.random.PRNGKey(42)
 state = create_train_state(
@@ -63,9 +60,16 @@ state = create_train_state(
     lr=config.training.lr,
     weight_decay=config.training.weight_decay,
     tau_start=config.ema.tau_start,
+    grad_clip=config.training.grad_clip,
 )
 state = shard_params(state, mesh)
-log.info('TrainState created and sharded across %d chips', n_devices)
+n_params = sum(x.size for x in jax.tree.leaves(state.params))
+log.info('TrainState: %d params (%.1f MB bf16), sharded across %d chips',
+         n_params, n_params * 2 / 1e6, n_devices)
+log.info('Config: d_model=%d, n_heads=%d, expand=%d, n_layers=%d, batch=%d, seq=%d, grad_clip=%.1f, remat=%s',
+         config.mamba2.d_model, config.mamba2.n_heads, config.mamba2.expand_factor,
+         config.mamba2.n_layers, config.training.batch_size, config.embedding.seq_len,
+         config.training.grad_clip, config.mamba2.use_remat)
 
 train_loader = create_dataloader(
     config.data.arrayrecord_dir, split='train',
@@ -75,12 +79,29 @@ train_loader = create_dataloader(
     prefetch_buffer_size=config.data.prefetch_buffer_size,
 )
 
+# Async data prefetch — double-buffering thread overlaps IO with TPU compute
+prefetch_q = queue.Queue(maxsize=2)
+def _prefetch(loader, mesh):
+    try:
+        for batch in loader:
+            batch = {k: jnp.array(v) for k, v in batch.items() if not isinstance(v, (str, bytes))}
+            batch = shard_batch(batch, mesh)
+            prefetch_q.put(batch)
+    except Exception as e:
+        log.error('Prefetch error: %s', e)
+    prefetch_q.put(None)  # Sentinel
+
+threading.Thread(target=_prefetch, args=(train_loader, mesh), daemon=True).start()
+log.info('Async prefetch started (queue depth=2)')
+
 log.info('=== Training started ===')
 step = 0
 t0 = time.time()
-for batch in train_loader:
-    batch = {k: jnp.array(v) for k, v in batch.items() if not isinstance(v, (str, bytes))}
-    batch = shard_batch(batch, mesh)
+while True:
+    batch = prefetch_q.get()
+    if batch is None:
+        break
+
     state, metrics = train_step(state, batch, model)
 
     step += 1
@@ -88,14 +109,23 @@ for batch in train_loader:
         elapsed = time.time() - t0
         loss = float(metrics['loss'])
         cfm = float(metrics['cfm_loss'])
-        log.info('step %d | loss %.4f | cfm %.4f | %.1f steps/s', step, loss, cfm, 50 / elapsed)
+        gnorm = float(metrics['grad_norm'])
+        log.info('step %d | loss %.4f | cfm %.4f | grad_norm %.2f | %.2f steps/s',
+                 step, loss, cfm, gnorm, 50 / elapsed)
         t0 = time.time()
 
     if step % 500 == 0:
         log.info('Checkpointing at step %d...', step)
-        import orbax.checkpoint as ocp
-        mgr = ocp.CheckpointManager('checkpoints/jax_v6')
-        mgr.save(step, args=ocp.args.StandardSave(state))
+        import os, pickle
+        ckpt_dir = f'checkpoints/jax_v6/step_{step}'
+        os.makedirs(ckpt_dir, exist_ok=True)
+        params_np = jax.tree.map(lambda x: np.array(x), state.params)
+        target_np = jax.tree.map(lambda x: np.array(x), state.target_params)
+        ckpt_path = f'{ckpt_dir}/state.pkl'
+        with open(ckpt_path, 'wb') as f:
+            pickle.dump({'params': params_np, 'target_params': target_np, 'step': step, 'tau': float(state.tau)}, f)
+        ckpt_mb = os.path.getsize(ckpt_path) / 1e6
+        log.info('Saved %s (%.1f MB)', ckpt_path, ckpt_mb)
         import subprocess
         subprocess.run(['gsutil', '-m', '-q', 'rsync', '-r',
                         'checkpoints/jax_v6/', 'gs://fin-ia-bucket/checkpoints/jax_v6/'],
