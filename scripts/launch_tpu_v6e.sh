@@ -20,7 +20,7 @@ ZONE="${ZONE:-europe-west4-a}"
 TPU_TYPE="${TPU_TYPE:-v6e-8}"
 PROJECT="${PROJECT:-$(gcloud config get-value project 2>/dev/null)}"
 GCS_BUCKET="${GCS_BUCKET:-gs://fin-ia-bucket}"
-RUNTIME_VERSION="${RUNTIME_VERSION:-v2-alpha-tpuv6e}"
+VERSION="${VERSION:-v2-alpha-tpuv6e}"
 REPO_DIR="/home/${USER}/Financial_IA"
 VENV_DIR="${REPO_DIR}/.venv_tpu"
 SKIP_CREATE=false
@@ -62,16 +62,27 @@ if [ "$SKIP_CREATE" = false ]; then
         --zone="$ZONE" \
         --project="$PROJECT" \
         --accelerator-type="$TPU_TYPE" \
-        --runtime-version="$RUNTIME_VERSION" \
-        --preemptible \
-        --scopes=cloud-platform
+        --version="$VERSION" \
+        --preemptible
 
     echo "  TPU VM created."
 fi
 
-# ── Phase 1: Setup environment on TPU VM ───────────────────────────────────
+# ── Phase 1: Upload code + setup environment on TPU VM ─────────────────────
 echo ""
-echo "=== Phase 1: Setting up environment ==="
+echo "=== Phase 1: Uploading code to TPU VM ==="
+
+# Upload code via scp (works regardless of GitHub auth on VM)
+LOCAL_REPO="$(cd "$(dirname "$0")/.." && pwd)"
+echo "  Syncing ${LOCAL_REPO} -> TPU VM..."
+gcloud compute tpus tpu-vm scp --recurse \
+    "${LOCAL_REPO}/src" "${LOCAL_REPO}/scripts" "${LOCAL_REPO}/configs" \
+    "${LOCAL_REPO}/pyproject.toml" \
+    "${TPU_NAME}:~/Financial_IA/" \
+    --zone="$ZONE" --project="$PROJECT" --worker=0
+
+echo ""
+echo "=== Phase 1b: Setting up environment ==="
 
 gcloud compute tpus tpu-vm ssh "$TPU_NAME" \
     --zone="$ZONE" --project="$PROJECT" \
@@ -79,22 +90,19 @@ gcloud compute tpus tpu-vm ssh "$TPU_NAME" \
 set -euo pipefail
 echo "--- [TPU] Environment setup ---"
 
-# Clone or update repo
 REPO_DIR="$HOME/Financial_IA"
-if [ -d "$REPO_DIR/.git" ]; then
-    echo "  Pulling latest..."
-    cd "$REPO_DIR" && git pull --ff-only
-else
-    echo "  Cloning repo..."
-    git clone https://github.com/$(git config --global user.name 2>/dev/null || echo 'user')/Financial_IA.git "$REPO_DIR" || {
-        echo "  [WARN] Clone failed — assuming repo is pre-staged."
-    }
-fi
+mkdir -p "$REPO_DIR"
 cd "$REPO_DIR"
 
-# Create venv
+# Ensure python3-venv + pip are installed (TPU VM base image lacks ensurepip)
+echo "  Installing python3-venv (if needed)..."
+sudo apt-get update -qq
+sudo apt-get install -y -qq python3-venv python3-pip
+
+# Create venv (recreate if broken)
 VENV="$REPO_DIR/.venv_tpu"
-if [ ! -d "$VENV" ]; then
+if [ ! -f "$VENV/bin/activate" ]; then
+    rm -rf "$VENV"
     python3 -m venv "$VENV"
 fi
 source "$VENV/bin/activate"
@@ -152,26 +160,39 @@ REPO_DIR="$HOME/Financial_IA"
 cd "$REPO_DIR"
 source .venv_tpu/bin/activate
 
-# Sync data from GCS if local tokens_v5 is missing
-if [ ! -d "data/tokens_v5" ] || [ -z "$(ls data/tokens_v5/*.pt 2>/dev/null)" ]; then
-    echo "  Syncing tokens from GCS..."
-    gsutil -m rsync -r gs://fin-ia-bucket/data/tokens_v5/ data/tokens_v5/
-fi
-
-# Convert to ArrayRecord (idempotent — skips if manifest exists and is fresh)
-if [ -f "data/arrayrecord/manifest.json" ]; then
-    echo "  ArrayRecord manifest already exists — skipping conversion."
+# Try to get ArrayRecord from GCS first (fast path — avoids re-conversion)
+if gsutil ls gs://fin-ia-bucket/data/arrayrecord/manifest.json &>/dev/null; then
+    echo "  ArrayRecord found on GCS — syncing..."
+    mkdir -p data/arrayrecord
+    gsutil -m rsync -r gs://fin-ia-bucket/data/arrayrecord/ data/arrayrecord/
+elif [ -f "data/arrayrecord/manifest.json" ]; then
+    echo "  ArrayRecord manifest already exists locally — skipping."
 else
+    # Need to convert from .pt files
+    if [ ! -d "data/tokens_v5" ] || [ -z "$(ls data/tokens_v5/*.pt 2>/dev/null)" ]; then
+        # Try GCS
+        if gsutil ls gs://fin-ia-bucket/data/tokens_v5/ &>/dev/null; then
+            echo "  Syncing tokens from GCS..."
+            mkdir -p data/tokens_v5
+            gsutil -m rsync -r gs://fin-ia-bucket/data/tokens_v5/ data/tokens_v5/
+        else
+            echo "  [ERROR] No tokens found locally or on GCS."
+            echo "  Upload tokens first: gsutil -m cp data/tokens_v5/*.pt gs://fin-ia-bucket/data/tokens_v5/"
+            echo "  Or upload ArrayRecord: gsutil -m cp -r data/arrayrecord/ gs://fin-ia-bucket/data/arrayrecord/"
+            exit 1
+        fi
+    fi
+
     echo "  Converting .pt -> ArrayRecord..."
     python3 scripts/convert_pt_to_arrayrecord.py \
         --input data/tokens_v5/ \
         --output data/arrayrecord/ \
         --seq_len 128
-fi
 
-# Upload ArrayRecord to GCS for persistence across preemptions
-echo "  Syncing ArrayRecord to GCS..."
-gsutil -m rsync -r data/arrayrecord/ gs://fin-ia-bucket/data/arrayrecord/
+    # Upload ArrayRecord to GCS for persistence across preemptions
+    echo "  Syncing ArrayRecord to GCS..."
+    gsutil -m rsync -r data/arrayrecord/ gs://fin-ia-bucket/data/arrayrecord/
+fi
 
 echo "--- [TPU] Data ready ---"
 REMOTE_DATA
@@ -247,7 +268,7 @@ n_devices = len(jax.devices())
 log.info('Training on %d %s chips', n_devices, jax.devices()[0].platform.upper())
 
 # Create model + state
-model = FinJEPA(config)
+model = FinJEPA.from_config(config)
 state = create_train_state(model, config, jax.random.PRNGKey(42))
 state = shard_params(state, mesh)
 

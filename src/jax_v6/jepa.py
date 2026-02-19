@@ -17,6 +17,7 @@ from flax import linen as nn
 from jax import Array
 from jax.random import PRNGKey
 
+from .config import StrateIIConfig
 from .encoders.mamba2_encoder import Mamba2Encoder
 from .predictors.predictor import Predictor
 from .predictors.flow_predictor import FlowPredictor
@@ -57,6 +58,33 @@ class FinJEPA(nn.Module):
     var_weight: float = 25.0
     cov_weight: float = 1.0
     var_gamma: float = 1.0
+
+    @classmethod
+    def from_config(cls, config: StrateIIConfig) -> "FinJEPA":
+        """Construct FinJEPA from a StrateIIConfig dataclass."""
+        return cls(
+            num_codes=config.embedding.num_codes,
+            codebook_dim=config.embedding.codebook_dim,
+            d_model=config.mamba2.d_model,
+            d_state=config.mamba2.d_state,
+            n_layers=config.mamba2.n_layers,
+            n_heads=config.mamba2.n_heads,
+            expand_factor=config.mamba2.expand_factor,
+            conv_kernel=config.mamba2.conv_kernel,
+            seq_len=config.embedding.seq_len,
+            chunk_size=config.mamba2.chunk_size,
+            pred_hidden_dim=config.predictor.hidden_dim,
+            pred_n_layers=config.predictor.n_layers,
+            pred_dropout=config.predictor.dropout,
+            pred_z_dim=config.predictor.z_dim,
+            cfm_weight=config.predictor.cfm_weight,
+            cfm_n_steps=config.predictor.cfm_n_steps,
+            cfm_ot=config.predictor.cfm_ot,
+            inv_weight=config.vicreg.inv_weight,
+            var_weight=config.vicreg.var_weight,
+            cov_weight=config.vicreg.cov_weight,
+            var_gamma=config.vicreg.var_gamma,
+        )
 
     def setup(self):
         self.context_encoder = Mamba2Encoder(
@@ -141,16 +169,34 @@ class FinJEPA(nn.Module):
         )  # (B, S, d_model)
 
         # 2. Target encoder: same architecture, EMA weights, NO masking
-        # Apply context_encoder with target_params (functional call)
-        h_y = jax.lax.stop_gradient(
-            self.context_encoder.apply(
-                {"params": target_params},
-                token_indices,
-                weekend_mask=weekend_mask,
-                block_mask=None,  # Target sees everything
-                exo_clock=exo_clock,
+        # Apply context_encoder with target_params (extract encoder subset)
+        # target_params is the full model params dict; we need context_encoder's subset.
+        # When target_params is None (init), fall back to self-encoding.
+        if target_params is not None:
+            encoder_target_params = target_params["context_encoder"]
+        else:
+            encoder_target_params = None
+
+        if encoder_target_params is not None:
+            h_y = jax.lax.stop_gradient(
+                self.context_encoder.apply(
+                    {"params": encoder_target_params},
+                    token_indices,
+                    weekend_mask=weekend_mask,
+                    block_mask=None,  # Target sees everything
+                    exo_clock=exo_clock,
+                )
             )
-        )  # (B, S, d_model)
+        else:
+            # During init: just use context encoder directly
+            h_y = jax.lax.stop_gradient(
+                self.context_encoder(
+                    token_indices,
+                    weekend_mask=weekend_mask,
+                    block_mask=None,
+                    exo_clock=exo_clock,
+                )
+            )  # (B, S, d_model)
 
         # 3. Predict target representations with stochastic noise z
         N_tgt = target_positions.shape[1]
