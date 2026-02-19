@@ -53,9 +53,12 @@ The primary training path is JAX-native (`src/jax_v6/`), designed for TPU pods.
 - **Conditional remat** — gradient checkpointing on/off per hardware (v6e: on, v5p: off).
 
 ### Validated on TPU v6e-8 (February 2026)
+The v6e (Trillium) is designed for inference, not training — with only 31 GB HBM per chip and oversized MXU relative to memory bandwidth. It was the only TPU type available to us without TRC quota. We ran on it anyway to validate the full JAX pipeline end-to-end and prepare the codebase for proper training hardware (v5p).
+
 - 3.9M params (d_model=256), 8 Trillium chips
 - 2,700 training steps: loss 7448 → 4839 (-35%), CFM loss 2.17 → 1.45 (-33%)
 - 0.3 steps/s with remat + synchronous data loading
+- ~5% MXU utilization (memory-bound at 29/31 GB HBM)
 
 ### Scaling to TPU v5p-8
 - **184M params**: d_model=1024, expand=2, n_heads=16, n_layers=24
