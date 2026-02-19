@@ -74,6 +74,7 @@ class TrainingConfig:
     batch_size: int = 8192  # Global batch — 1024/chip on v5p-8 (184M params, ~40 GB < 95 GB HBM)
     precision: str = "bf16"
     grad_clip: float = 1.0  # Max gradient norm (0.0 = disabled)
+    n_restarts: int = 4     # SGDR warm restarts — escapes local minima
 
 
 @dataclass(frozen=True)
