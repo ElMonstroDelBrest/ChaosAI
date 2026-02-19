@@ -172,15 +172,12 @@ class FinJEPA(nn.Module):
         # Apply context_encoder with target_params (extract encoder subset)
         # target_params is the full model params dict; we need context_encoder's subset.
         # When target_params is None (init), fall back to self-encoding.
+        # target_params is already the context_encoder subset
+        # (set in create_train_state from params["context_encoder"])
         if target_params is not None:
-            encoder_target_params = target_params["context_encoder"]
-        else:
-            encoder_target_params = None
-
-        if encoder_target_params is not None:
             h_y = jax.lax.stop_gradient(
                 self.context_encoder.apply(
-                    {"params": encoder_target_params},
+                    {"params": target_params},
                     token_indices,
                     weekend_mask=weekend_mask,
                     block_mask=None,  # Target sees everything
@@ -209,17 +206,20 @@ class FinJEPA(nn.Module):
         # target_positions: (B, N_tgt) -> index into h_y: (B, S, d_model)
         h_y_tgt = jax.vmap(lambda h, idx: h[idx])(h_y, target_positions)  # (B, N_tgt, d_model)
 
-        # 5. Flatten valid targets for VICReg (exclude padding)
-        h_pred_flat = h_y_pred[target_mask]  # (N_valid, d_model)
-        h_tgt_flat = jax.lax.stop_gradient(h_y_tgt[target_mask])  # (N_valid, d_model)
+        # 5. Flatten to (B*N_tgt, D) with mask — no boolean indexing (JIT-safe)
+        D = h_y_pred.shape[-1]
+        h_pred_flat = h_y_pred.reshape(-1, D)                          # (B*N_tgt, D)
+        h_tgt_flat = jax.lax.stop_gradient(h_y_tgt).reshape(-1, D)    # (B*N_tgt, D)
+        mask_flat = target_mask.reshape(-1).astype(jnp.float32)        # (B*N_tgt,)
 
-        # 6. VICReg loss
+        # 6. VICReg loss (masked)
         loss_dict = vicreg_loss(
             h_pred_flat, h_tgt_flat,
             inv_weight=self.inv_weight,
             var_weight=self.var_weight,
             cov_weight=self.cov_weight,
             var_gamma=self.var_gamma,
+            mask=mask_flat,
         )
         total_loss = loss_dict["total"]
 
@@ -231,10 +231,10 @@ class FinJEPA(nn.Module):
                 h_x, target_positions, h_y_tgt_stopped,
                 key=key_cfm, deterministic=deterministic,
             )
-            # Mask padding positions before MSE
-            v_pred_flat = v_pred[target_mask]
-            v_tgt_flat = v_tgt[target_mask]
-            cfm_loss = jnp.mean((v_pred_flat - v_tgt_flat) ** 2)
+            # Masked MSE — no boolean indexing (JIT-safe)
+            mask_3d = target_mask[..., None].astype(jnp.float32)  # (B, N_tgt, 1)
+            n_valid = jnp.maximum(jnp.sum(target_mask.astype(jnp.float32)), 1.0)
+            cfm_loss = jnp.sum(mask_3d * (v_pred - v_tgt) ** 2) / (n_valid * D)
             total_loss = total_loss + self.cfm_weight * cfm_loss
 
         return {

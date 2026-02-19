@@ -269,8 +269,29 @@ log.info('Training on %d %s chips', n_devices, jax.devices()[0].platform.upper()
 
 # Create model + state
 model = FinJEPA.from_config(config)
-state = create_train_state(model, config, jax.random.PRNGKey(42))
+
+# Dummy batch for init (shape inference)
+B = config.training.batch_size // n_devices
+S = config.embedding.seq_len
+max_tgt = int(S * 0.5) + 8
+dummy_batch = {
+    'token_indices': jnp.zeros((B, S), dtype=jnp.int64),
+    'weekend_mask': jnp.zeros((B, S), dtype=jnp.float32),
+    'exo_clock': jnp.zeros((B, S, 2), dtype=jnp.float32),
+    'block_mask': jnp.zeros((B, S), dtype=jnp.bool_),
+    'target_positions': jnp.zeros((B, max_tgt), dtype=jnp.int64),
+    'target_mask': jnp.ones((B, max_tgt), dtype=jnp.bool_),
+}
+
+key = jax.random.PRNGKey(42)
+state = create_train_state(
+    model, key, dummy_batch,
+    lr=config.training.lr,
+    weight_decay=config.training.weight_decay,
+    tau_start=config.ema.tau_start,
+)
 state = shard_params(state, mesh)
+log.info('TrainState created and sharded across %d chips', n_devices)
 
 # Create data loaders
 train_loader = create_dataloader(
@@ -285,7 +306,7 @@ log.info('=== Training started ===')
 step = 0
 t0 = time.time()
 for batch in train_loader:
-    batch = {k: jnp.array(v) for k, v in batch.items() if not isinstance(v, str)}
+    batch = {k: jnp.array(v) for k, v in batch.items() if not isinstance(v, (str, bytes))}
     batch = shard_batch(batch, mesh)
     state, metrics = train_step(state, batch, model)
 

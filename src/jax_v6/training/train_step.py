@@ -9,6 +9,8 @@ Single @jax.jit function that:
 GSPMD handles gradient All-Reduce automatically via sharding annotations.
 """
 
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -16,7 +18,7 @@ from jax import Array
 from .train_state import FinJEPATrainState, update_target_ema
 
 
-@jax.jit
+@partial(jax.jit, static_argnums=(2,))
 def train_step(
     state: FinJEPATrainState,
     batch: dict[str, Array],
@@ -74,7 +76,7 @@ def train_step(
     return state, metrics
 
 
-@jax.jit
+@partial(jax.jit, static_argnums=(2,))
 def eval_step(
     state: FinJEPATrainState,
     batch: dict[str, Array],

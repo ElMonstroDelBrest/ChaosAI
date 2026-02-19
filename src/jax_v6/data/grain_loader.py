@@ -111,13 +111,6 @@ class ParseAndMask(grain.MapTransform):
         }
 
 
-class NumpyBatch(grain.BatchTransform):
-    """Grain batch transform that stacks dicts into batched numpy arrays."""
-
-    def __init__(self, batch_size: int):
-        super().__init__(batch_size=batch_size, drop_remainder=True)
-
-
 def _auto_worker_count(requested: int) -> int:
     """Resolve worker_count: 0 means auto-detect from os.cpu_count().
 
