@@ -65,6 +65,8 @@ The primary training path is JAX-native (`src/jax_v6/`), designed for TPU pods.
 
 ## 4. Training Results (v6e-8)
 
+![Training Curves — TPU v6e-8](results/training_curves.png)
+
 | Metric | Start | End (step 2700) | Change |
 |---|---|---|---|
 | Total loss | 7448 | 4839 | -35% |
