@@ -2,8 +2,14 @@
 
 > **Architecture:** Exo-Clocked Mamba-2 SSD + OT-CFM + VICReg JEPA + Multiverse Crossing
 > **Framework:** JAX/Flax (TPU-native) + PyTorch (GPU validation)
-> **Scale:** 15M → 7B params, T-Shirt sizing S/M/L/XL (TPU v5p-8 → v5p-768)
-> **Status:** Production-ready — Data Lake on Drive, zero-cost GCS when idle
+> **Target:** 7B params on TPU v5p-768 — validating scaling laws at 150M and 1B first
+> **Approach:** Guerrilla Research — zero idle cost, Drive-backed Data Lake, TRC TPUs
+
+ChaosAI is a self-supervised foundation model for chaotic dynamical systems. The architecture is designed to scale to 7B parameters (T-Shirt XL) on a full TPU v5p-768 pod — but we're not there yet, and that's deliberate.
+
+We're currently validating **scaling laws** on the 150M (v5p-32) and 1B (v5p-128) tiers to prove the architecture works before committing larger compute. Every design decision — from MXU-aligned head dimensions to the Auto-Sharder topology mapping — is built so that the same codebase runs unchanged from 15M to 7B.
+
+The infrastructure reflects the same philosophy: **constraint-driven efficiency**. The Data Lake architecture (Google Drive ↔ GCS ↔ TPU) is not a workaround — it's a deliberate strategy. We can scale the training dataset by 10x or 100x to validate model alpha without VC funding or five-figure monthly cloud bills. GCS is hot storage: data stages in before training, results back up to Drive after, and the bucket returns to $0. This is what guerrilla research looks like when you're optimizing for insight per dollar, not for appearances.
 
 > **DISCLAIMER: RESEARCH PURPOSE ONLY**
 >
@@ -88,9 +94,11 @@ Generate custom configs: `python scripts/generate_optimal_config.py --target_pod
 
 Training diverged at step 2750 (NaN) due to missing gradient clipping — now fixed with `optax.clip_by_global_norm(1.0)` and float32 accumulation in the SSD kernel.
 
-## 5. Data Lake & FinOps
+## 5. Data Lake & FinOps — Guerrilla Research Infrastructure
 
-We use a 3-tier data lake architecture to manage large datasets (30 TB+) while keeping costs at zero when idle.
+Most ML research assumes unlimited cloud budgets. We don't. ChaosAI runs on a **zero-idle-cost** infrastructure designed to scale datasets by 100x without scaling bills.
+
+The 3-tier Data Lake is the core of this strategy:
 
 ```
 Google Drive (30 TB Cold, free)  ←→  GCS Bucket (Hot, paid)  ←→  TPU VM (Compute)
@@ -128,6 +136,18 @@ ChaosAI_DataLake/
 └── 05_results/                                # Training curves, ablation results
 ```
 
+### Why This Works at Scale
+
+This is not a hack — it's **efficiency engineering**. Google Drive provides 30 TB of cold storage at zero marginal cost. GCS provides the bandwidth TPUs need (multi-GB/s via Grain). By treating GCS as ephemeral hot cache rather than persistent storage, we decouple dataset scale from monthly burn rate.
+
+| Dataset size | GCS "always-on" cost | Drive ↔ GCS cost (train 3 days/month) |
+|--------------|---------------------|---------------------------------------|
+| 100 GB | $2/month | $0.20 (3 days) |
+| 1 TB | $20/month | $2 (3 days) |
+| 10 TB | $200/month | $20 (3 days) |
+
+The 10 TB scenario is the clearest: $200/month wasted on idle storage, vs $20 only when training. Over a year of intermittent research, that's **$2,160 saved** — enough to fund the next round of experiments. This is how you validate alpha without a Series A.
+
 ### Standard Workflow
 ```bash
 # Before training — stage data to GCS (~2 min for 60 MB, scales linearly)
@@ -153,6 +173,15 @@ nohup bash scripts/launch_tpu_v5p.sh m &
 | **TPU Zone** | `europe-west4-a` | Co-located with bucket → zero egress |
 | **Compute** | TPU Research Cloud (TRC) | Preemptible v5p pods, free via application |
 | **Current cost** | **$0/month** | All data on Drive, GCS emptied after training |
+
+### Scaling Roadmap
+
+| Phase | Scale | Pod | Goal | Status |
+|-------|-------|-----|------|--------|
+| Validate pipeline | 3.9M | v6e-8 | End-to-end JAX, debug NaN | Done |
+| Scaling laws (small) | 15M–150M | v5p-8 / v5p-32 | Loss curves, Chinchilla fit | Next |
+| Scaling laws (medium) | 1B | v5p-128 | Confirm power law holds | Planned |
+| **Full scale** | **7B** | **v5p-768** | **Production model** | **Target** |
 
 ### GCP Resource Audit (February 2026)
 

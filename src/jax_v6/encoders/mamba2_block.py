@@ -26,6 +26,16 @@ class Mamba2Block(nn.Module):
         x_branch -> CausalConv1d -> SiLU -> chunked_ssd -> y
         y = y * SiLU(z_gate)
         y -> Linear -> + residual
+
+    Clock modulation stability:
+        dt_raw is the SSM discretization step (pre-softplus). Unbounded additive
+        bias on dt_raw causes instability: large positive → dt explodes → SSM
+        state diverges; large negative → dt ≈ 0 → vanishing gradients.
+
+        Fix: clock bias is bounded via tanh, scaled by dt_max_delta (default 2.0).
+        After softplus, this translates to a bounded multiplicative factor on the
+        effective step size, preserving base SSM dynamics while allowing ±clock
+        modulation.
     """
     d_model: int = 128
     d_state: int = 16
@@ -33,6 +43,7 @@ class Mamba2Block(nn.Module):
     expand_factor: int = 2
     conv_kernel: int = 4
     chunk_size: int = 128
+    dt_max_delta: float = 2.0  # max ±shift on pre-softplus dt from clock signals
 
     def setup(self):
         self.d_inner = self.d_model * self.expand_factor
@@ -101,22 +112,25 @@ class Mamba2Block(nn.Module):
             )
         A_log = self.param("A_log", a_log_init, (self.n_heads, self.d_state))
 
-        # Clock modulation: bias dt (pre-softplus) to adjust temporal grain
-        # Exogenous clock takes priority over endogenous vol_clock
+        # Clock modulation: bounded bias on dt (pre-softplus) to adjust temporal grain.
+        # tanh constrains the shift to [-dt_max_delta, +dt_max_delta], preventing
+        # dt explosion (state divergence) or collapse (vanishing gradients).
+        # Zero-init ensures no modulation at init → backward compatible with
+        # checkpoints trained without clock signals.
         if exo_clock is not None:
-            exo_bias = nn.Dense(
+            exo_raw = nn.Dense(
                 self.n_heads, use_bias=True, name="exo_proj",
                 kernel_init=nn.initializers.zeros,
                 bias_init=nn.initializers.zeros,
             )(exo_clock)  # (B, L, 2) -> (B, L, n_heads)
-            dt = dt + exo_bias
+            dt = dt + self.dt_max_delta * jnp.tanh(exo_raw)
         elif vol_clock is not None:
-            vol_bias = nn.Dense(
+            vol_raw = nn.Dense(
                 self.n_heads, use_bias=True, name="vol_proj",
                 kernel_init=nn.initializers.zeros,
                 bias_init=nn.initializers.zeros,
             )(vol_clock[..., None])  # (B, L, 1) -> (B, L, n_heads)
-            dt = dt + vol_bias
+            dt = dt + self.dt_max_delta * jnp.tanh(vol_raw)
 
         # Reshape B, C: (B, L, n_heads * d_state) -> (B, L, n_heads, d_state)
         B_proj = B_proj.reshape(*B_proj.shape[:-1], self.n_heads, self.d_state)
