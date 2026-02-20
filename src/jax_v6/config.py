@@ -75,6 +75,7 @@ class TrainingConfig:
     precision: str = "bf16"
     grad_clip: float = 1.0  # Max gradient norm (0.0 = disabled)
     n_restarts: int = 4     # SGDR warm restarts — escapes local minima
+    checkpoint_interval: int = 250  # Steps between checkpoints (preemptible = more frequent)
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,34 @@ class DataConfig:
 
 
 @dataclass(frozen=True)
+class StrateIVJAXConfig:
+    """TD-MPC2 + Multiverse Crossing config for JAX Strate IV."""
+
+    n_multiverses: int = 5
+    perturbation_sigma: float = 0.01
+    latent_dim: int = 128
+    hidden_dim: int = 256
+    n_layers: int = 2
+    n_quantiles: int = 32
+    cvar_alpha_min: float = 0.1
+    cvar_alpha_max: float = 0.4
+    gamma: float = 0.99
+    lr: float = 3e-4
+    ema_tau: float = 0.005
+    max_grad_norm: float = 10.0
+    batch_size: int = 256
+    buffer_capacity: int = 100_000
+    warmup_steps: int = 1_000
+    update_freq: int = 1
+    use_planning: bool = True
+    plan_horizon: int = 5
+    plan_samples: int = 512
+    plan_iters: int = 6
+    plan_temperature: float = 0.5
+    plan_init_std: float = 0.5
+
+
+@dataclass(frozen=True)
 class StrateIIConfig:
     mamba2: Mamba2Config = field(default_factory=Mamba2Config)
     predictor: PredictorConfig = field(default_factory=PredictorConfig)
@@ -96,6 +125,7 @@ class StrateIIConfig:
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     data: DataConfig = field(default_factory=DataConfig)
+    strate_iv: StrateIVJAXConfig | None = None
 
 
 def load_config(path: str) -> StrateIIConfig:
@@ -104,5 +134,11 @@ def load_config(path: str) -> StrateIIConfig:
     return from_dict(
         data_class=StrateIIConfig,
         data=config_dict,
-        config=DaciteConfig(strict=True),
+        config=DaciteConfig(
+            strict=True,
+            forward_references={
+                "StrateIVJAXConfig": StrateIVJAXConfig,
+                "StrateIVJAXConfig | None": StrateIVJAXConfig | None,
+            },
+        ),
     )
