@@ -46,3 +46,8 @@ data/tokens/
 # Build artifacts
 .triton_cache/
 training_h100.log
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex.gz
