@@ -3,7 +3,7 @@
 > **Architecture:** Exo-Clocked Mamba-2 SSD + OT-CFM + VICReg JEPA + Multiverse Crossing
 > **Framework:** JAX/Flax (TPU-native) + PyTorch (GPU validation)
 > **Scale:** 15M → 7B params, T-Shirt sizing S/M/L/XL (TPU v5p-8 → v5p-768)
-> **Status:** Production infrastructure complete — Auto-Sharder, Multiverse Crossing, XLA flags
+> **Status:** Production-ready — Data Lake on Drive, zero-cost GCS when idle
 
 > **DISCLAIMER: RESEARCH PURPOSE ONLY**
 >
@@ -86,9 +86,86 @@ Generate custom configs: `python scripts/generate_optimal_config.py --target_pod
 | CFM loss | 2.17 | 1.45 | -33% |
 | Steps/s | 0.3 | 0.3 | stable |
 
-Training diverged at step 2750 (NaN) due to missing gradient clipping — now fixed with `optax.clip_by_global_norm(1.0)`.
+Training diverged at step 2750 (NaN) due to missing gradient clipping — now fixed with `optax.clip_by_global_norm(1.0)` and float32 accumulation in the SSD kernel.
 
-## 5. Long-Term Vision
+## 5. Data Lake & FinOps
+
+We use a 3-tier data lake architecture to manage large datasets (30 TB+) while keeping costs at zero when idle.
+
+```
+Google Drive (30 TB Cold, free)  ←→  GCS Bucket (Hot, paid)  ←→  TPU VM (Compute)
+         rclone 64×parallel              gsutil / Grain
+```
+
+### Data Manager (`scripts/trc_data_manager.sh`)
+
+| Command | Direction | Description |
+|---------|-----------|-------------|
+| `stage` | Drive → GCS | High-perf rclone transfer: 64 parallel streams, 128M chunks, `--fast-list`. Region safety check before transfer. |
+| `backup` | GCS → Drive | Archives checkpoints to `.tar.gz` before upload (Orbax generates thousands of small files per TPU chip — sending raw would hit Drive API rate limits). |
+| `cleanup` | GCS → /dev/null | Wipes all data + checkpoints from GCS. Confirmation prompt (`--force` for automation). Resets billing to $0. |
+| `status` | — | Per-prefix storage breakdown + estimated monthly cost + region match verification. |
+
+### Cost Model
+
+| Resource | Cost | Notes |
+|----------|------|-------|
+| Google Drive (Cold) | $0/month | Included in Google One / Workspace |
+| GCS Standard storage | ~$0.02/GB/month | Emptied after each training run → $0 when idle |
+| GCS ↔ TPU transfer | $0 | **Only if same region** — inter-region egress is billed per GB |
+| GCS ↔ Drive transfer | $0 (egress) | rclone uses Drive API, no GCS egress charges |
+
+### Drive Folder Structure
+```
+ChaosAI_DataLake/
+├── 01_raw_ohlcv/                              # Raw OHLCV candles (Binance Futures 1h)
+├── 02_tokens/                                 # Tokenized sequences (FSQ codes)
+├── 03_training_ready/
+│   └── arrayrecords_v5/                       # 433 ArrayRecord shards (Grain-ready)
+├── 04_checkpoints/
+│   └── jax_v6_v6e/                            # Archived checkpoints (tar.gz per run)
+│       └── checkpoints_jax_v6_v6e_all_steps.tar.gz
+└── 05_results/                                # Training curves, ablation results
+```
+
+### Standard Workflow
+```bash
+# Before training — stage data to GCS (~2 min for 60 MB, scales linearly)
+./scripts/trc_data_manager.sh stage
+
+# Train on TPU (hours to days)
+nohup bash scripts/launch_tpu_v5p.sh m &
+
+# After training — save checkpoints to Drive, then wipe GCS
+./scripts/trc_data_manager.sh backup --latest --scale m
+./scripts/trc_data_manager.sh cleanup --force
+
+# Verify: $0/month
+./scripts/trc_data_manager.sh status
+```
+
+## 6. Infrastructure & Cost
+
+| Resource | Value | Notes |
+|----------|-------|-------|
+| **GCP Project** | `financial-ai-487700` (ChaosAI) | |
+| **GCS Bucket** | `gs://fin-ia-bucket` | Region: `europe-west4`, Class: Standard |
+| **TPU Zone** | `europe-west4-a` | Co-located with bucket → zero egress |
+| **Compute** | TPU Research Cloud (TRC) | Preemptible v5p pods, free via application |
+| **Current cost** | **$0/month** | All data on Drive, GCS emptied after training |
+
+### GCP Resource Audit (February 2026)
+
+All legacy resources have been cleaned up:
+
+| Resource | Status | Monthly savings |
+|----------|--------|-----------------|
+| `financial-ia-ingest` (e2 VM + 50 GB SSD) | Deleted | -$8.50 |
+| `financial-ia-training` (H100 VM + 200 GB SSD) | Deleted | -$34.00 |
+| GCS bucket data (285 MB) | Moved to Drive | -$0.01 |
+| **Total** | **All on Drive** | **-$42.50/month** |
+
+## 7. Long-Term Vision
 
 The architecture is domain-agnostic — the tokenizer converts raw signals to discrete codes, and everything downstream operates on abstract token sequences. Planned extensions:
 
@@ -97,7 +174,7 @@ The architecture is domain-agnostic — the tokenizer converts raw signals to di
 - **Audio** — bioacoustics, speech dynamics
 - **Video** — frame-level latent prediction via JEPA spatial-temporal masking
 
-## 6. Project Structure
+## 8. Project Structure
 
 ```
 ChaosAI/
@@ -122,10 +199,11 @@ ChaosAI/
 │       ├── config.py          # All hyperparameters (StrateIIConfig + StrateIVJAXConfig)
 │       └── jepa.py            # FinJEPA model (encoder + predictor + CFM)
 ├── scripts/
-│   ├── setup_tpu_vm.sh        # TPU VM dependency setup
-│   ├── tpu_train_pipeline.sh  # Training launcher (XLA flags, async prefetch, GCS sync)
+│   ├── trc_data_manager.sh    # Data lake orchestrator (stage/backup/cleanup/status)
 │   ├── launch_tpu_v5p.sh      # Full TPU v5p pipeline (T-Shirt scale selector)
+│   ├── tpu_train_pipeline.sh  # Training launcher (XLA flags, async prefetch, GCS sync)
 │   ├── generate_optimal_config.py  # Chinchilla-optimal config generator
+│   ├── setup_tpu_vm.sh        # TPU VM dependency setup
 │   └── convert_pt_to_arrayrecord.py
 ├── configs/
 │   ├── scaling/               # T-Shirt configs: s_15m, m_150m, l_1b, xl_7b
@@ -134,43 +212,52 @@ ChaosAI/
 └── infra/                     # GCP startup scripts
 ```
 
-## 7. Quick Start (TPU)
+## 9. Quick Start (TPU)
 
 ```bash
-# 1. Create TPU VM (ensure same region as GCS bucket!)
+# 0. Stage data from Drive → GCS (from local machine with rclone configured)
+./scripts/trc_data_manager.sh stage
+
+# 1. Create TPU VM (same region as bucket — europe-west4!)
 gcloud compute tpus tpu-vm create chaosai \
-    --zone=us-east1-d --accelerator-type=v5p-8 \
+    --zone=europe-west4-a --accelerator-type=v5p-8 \
     --version=tpu-vm-tf-2.16.1-pjrt --preemptible
 
-# 2. Deploy code + setup deps
-gcloud compute tpus tpu-vm scp --recurse . chaosai:~/Financial_IA --zone=us-east1-d
-gcloud compute tpus tpu-vm ssh chaosai --zone=us-east1-d \
+# 2. Deploy code + setup dependencies
+gcloud compute tpus tpu-vm scp --recurse . chaosai:~/Financial_IA --zone=europe-west4-a
+gcloud compute tpus tpu-vm ssh chaosai --zone=europe-west4-a \
     --command="bash Financial_IA/scripts/setup_tpu_vm.sh"
 
 # 3. Launch training (T-Shirt scale: s/m/l/xl or legacy 184m/500m/1_5b/3b)
-gcloud compute tpus tpu-vm ssh chaosai --zone=us-east1-d \
+gcloud compute tpus tpu-vm ssh chaosai --zone=europe-west4-a \
     --command="nohup bash Financial_IA/scripts/launch_tpu_v5p.sh 184m &"
 
-# 4. Generate custom scaling config
+# 4. After training: backup checkpoints to Drive, wipe GCS
+./scripts/trc_data_manager.sh backup --latest --scale m
+./scripts/trc_data_manager.sh cleanup --force
+
+# 5. Generate custom scaling config
 python scripts/generate_optimal_config.py --target_pod v5p-32 --total_tokens 20B
 ```
 
-## 8. Tech Stack
+## 10. Tech Stack
 
 | Component | Technology |
 |---|---|
 | Training (primary) | JAX + Flax + Optax |
-| SSM kernel | Custom Chunked SSD (bf16) |
+| SSM kernel | Custom Chunked SSD (bf16 + f32 accum) |
 | ODE integration | Diffrax |
 | Optimal transport | Sinkhorn (JIT-compatible) |
 | Data pipeline | Google Grain + ArrayRecord |
-| Parallelism | GSPMD (NamedSharding) |
+| Parallelism | GSPMD (NamedSharding, Auto-Sharder) |
 | Checkpointing | Orbax |
 | Training (GPU legacy) | PyTorch + Lightning |
 | RL agent | TD-MPC2 + Multiverse Crossing (JAX/Flax) |
-| Infrastructure | GCP TPU v5p-8 → v5p-768 (Auto-Sharder) |
+| Data Lake | Google Drive (Cold, free) + GCS (Hot) + rclone |
+| FinOps | `trc_data_manager.sh` (stage / backup / cleanup / status) |
+| Infrastructure | GCP TPU v5p-8 → v5p-768 (TRC program) |
 
-## 9. References
+## 11. References
 
 - LeCun, *A Path Towards Autonomous Machine Intelligence* (JEPA, 2022)
 - Gu & Dao, *Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality* (Mamba-2 / SSD, 2024)
@@ -181,7 +268,7 @@ python scripts/generate_optimal_config.py --target_pod v5p-32 --total_tokens 20B
 - Bardes et al., *VICReg: Variance-Invariance-Covariance Regularization* (2022)
 - Assran et al., *Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture* (I-JEPA, 2023)
 
-## 10. Multiverse Crossing — Key Innovation
+## 12. Multiverse Crossing — Key Innovation
 
 The **Multiverse Crossing** mechanism is a novel approach to uncertainty quantification for decision-making under chaos:
 
