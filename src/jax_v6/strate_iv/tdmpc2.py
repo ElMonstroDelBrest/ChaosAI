@@ -7,7 +7,10 @@ Architecture:
   - Target critic:   EMA copy for stable Bellman targets
 
 Planning:
-  MPPI via jax.lax.scan (rollout) + jax.vmap (K samples).
+  MPPI with Python-unrolled iterations (plan_iters=6 is a small constant).
+  Unrolling lets XLA fuse all kernels across iterations into one HLO graph —
+  lax.scan would insert barriers between iterations, blocking kernel fusion.
+  Inner rollout (world model H steps) stays as lax.scan (sequential by nature).
   CVaR alpha dynamically modulated by multiverse convergence score.
 
 Training:
@@ -154,8 +157,16 @@ class TDMPC2Agent:
         mu = jnp.broadcast_to(a0, (H, self.action_dim))
         sigma = jnp.ones((H, self.action_dim)) * cfg.plan_init_std
 
-        def mppi_iter(carry, _):
-            mu, sigma, rng = carry
+        # Pre-compute constants outside the loop
+        discount = gamma ** jnp.arange(H, dtype=jnp.float32)
+        gamma_H = gamma ** H
+        z0 = jnp.broadcast_to(z[None, :], (K, cfg.latent_dim))
+
+        # Unrolled MPPI iterations — Python for loop instead of lax.scan.
+        # plan_iters=6 is a small compile-time constant. Unrolling lets XLA
+        # see the full graph and fuse kernels across iterations (no barriers).
+        # Inner world model rollout stays as lax.scan (H steps, sequential).
+        for _ in range(cfg.plan_iters):
             rng, sub = jax.random.split(rng)
 
             # Sample K action sequences: (H, K, action_dim)
@@ -163,34 +174,30 @@ class TDMPC2Agent:
             actions = jnp.clip(mu[:, None, :] + sigma[:, None, :] * eps, -1.0, 1.0)
 
             # Imagined rollout for all K samples
-            z0 = jnp.broadcast_to(z[None, :], (K, cfg.latent_dim))
-            z_seq, r_seq = self.world_model.apply(wm_params, z0, actions, method=WorldModel.rollout)
+            z_seq, r_seq = self.world_model.apply(
+                wm_params, z0, actions, method=WorldModel.rollout,
+            )
 
             # Discounted returns
-            discount = gamma ** jnp.arange(H, dtype=jnp.float32)
             returns = (r_seq * discount[:, None]).sum(axis=0)  # (K,)
 
             # Terminal value via CVaR of target critic
             z_T = z_seq[-1]  # (K, latent_dim)
             a_T = self.actor_module.apply(actor_params, z_T)  # (K, action_dim)
-            q_T = self.critic_module.apply(critic_params, z_T, a_T, method=EnsembleCritic.min)
+            q_T = self.critic_module.apply(
+                critic_params, z_T, a_T, method=EnsembleCritic.min,
+            )
             terminal_cvar = cvar_from_quantiles(q_T, alpha)  # (K,)
-            returns = returns + (gamma ** H) * terminal_cvar
+            returns = returns + gamma_H * terminal_cvar
 
             # MPPI softmax re-weighting
             w = jax.nn.softmax(returns / cfg.plan_temperature)  # (K,)
 
-            mu_new = (w[None, :, None] * actions).sum(axis=1)  # (H, action_dim)
-            sigma_new = jnp.sqrt(
-                (w[None, :, None] * (actions - mu_new[:, None, :]) ** 2).sum(axis=1)
+            mu = (w[None, :, None] * actions).sum(axis=1)  # (H, action_dim)
+            sigma = jnp.sqrt(
+                (w[None, :, None] * (actions - mu[:, None, :]) ** 2).sum(axis=1)
             )
-            sigma_new = jnp.maximum(sigma_new, 1e-3)
-
-            return (mu_new, sigma_new, rng), None
-
-        (mu, sigma, _), _ = jax.lax.scan(
-            mppi_iter, (mu, sigma, rng), None, length=cfg.plan_iters,
-        )
+            sigma = jnp.maximum(sigma, 1e-3)
 
         return jnp.clip(mu[0], -1.0, 1.0)  # first action
 
