@@ -1,0 +1,68 @@
+###############################################################################
+# Scaling Tier: 500M — Phase Transition
+#
+# v5p-32 (32 chips, 95 GB HBM each = 3040 GB total)
+# ~505M params, ~63 GB/chip @ batch 256/chip → fits without remat
+# Global batch 8,192 — balanced throughput/convergence
+###############################################################################
+
+mamba2:
+  d_model: 1536
+  d_state: 16
+  n_layers: 30
+  n_heads: 24          # head_dim = 1536*2/24 = 128 (1 MXU tile)
+  expand_factor: 2
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: false      # 63 GB/chip < 95 GB HBM — fits without remat
+
+predictor:
+  hidden_dim: 3072
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.997
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 8.0e-5
+  weight_decay: 0.02
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 8192      # 256/chip × 32 chips
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 250
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.2
+  num_workers: 0
+  prefetch_buffer_size: 128

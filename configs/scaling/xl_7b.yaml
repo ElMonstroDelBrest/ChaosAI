@@ -1,0 +1,79 @@
+###############################################################################
+# T-Shirt XL "Le Monstre" — 7B params — Saturer un Pod v5p-768 complet
+#
+# Target: v5p-768 (768 chips, 95 GB HBM each = 72.8 TB total)
+# Auto-Sharder: Mesh 2D (data=192, fsdp=4)
+# MXU alignment: head_dim = 4096*2/64 = 128 (1 tile MXU parfait)
+#
+# Chinchilla: 7B × 20 = 140B tokens optimal
+# FSDP obligatoire: 7B params = ~14 GB bf16. FSDP/4 = 3.5 GB/chip (léger
+# pour 95 GB HBM). Le goulot sera la bande passante ICI inter-tray.
+#
+# Architecture: Mamba plus large que profond (32 layers vs 48 pour 1B).
+# Les SSM bénéficient plus de la largeur que de la profondeur — contrairement
+# aux Transformers, les couches Mamba n'ont pas d'attention multi-tête qui
+# nécessite de la profondeur pour capturer des patterns hiérarchiques.
+#
+# HBM: ~20 GB/chip avec remat @ batch 256/chip → très confortable
+###############################################################################
+
+mamba2:
+  d_model: 4096           # 32 blocs MXU — le silicium ronronne
+  d_state: 16
+  n_layers: 32            # Large > Deep pour Mamba (pas d'attention hiérarchique)
+  n_heads: 64             # head_dim = 4096*2/64 = 128 (1 MXU tile parfait)
+  expand_factor: 2        # d_inner = 8192 (64 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: true          # Obligatoire pour 32 layers × 4096 d_model
+
+predictor:
+  hidden_dim: 8192         # 2× d_model
+  n_layers: 2
+  dropout: 0.0             # Pas de dropout à cette échelle (assez de data)
+  z_dim: 128              # Large pour capturer les modes latents
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 512   # Plus gros batch OT pour stabilité
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 16
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.999          # Très lent pour énorme modèle
+  tau_end: 1.0
+  anneal_epochs: 300
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 2.0e-5               # μP scaling: lr ∝ 1/sqrt(d_model)
+  weight_decay: 0.1         # Fort WD nécessaire à cette échelle
+  max_epochs: 100
+  warmup_epochs: 20
+  batch_size: 49152         # 256/chip × 192 data-parallel replicas
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 50   # Très fréquent — preemption critique à cette échelle
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.05           # Max data pour gros modèle
+  num_workers: 0
+  prefetch_buffer_size: 512  # Gros prefetch pour 768 chips

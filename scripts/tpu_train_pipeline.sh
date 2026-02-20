@@ -8,8 +8,41 @@ exec > "$LOG" 2>&1
 
 cd "$HOME/Financial_IA"
 source .venv_tpu/bin/activate
-export JAX_ENABLE_X64=1
-export JAX_COMPILATION_CACHE_DIR=/tmp/jax_cache
+
+# ── JAX / XLA flags ──────────────────────────────────────────────────
+# Compilation cache — persists across preemptions, avoids 5-10min recompile
+export JAX_COMPILATION_CACHE_DIR="$HOME/.jax_cache"
+mkdir -p "$JAX_COMPILATION_CACHE_DIR"
+
+# x64 emulation: DISABLED — float64 is 2× slower on TPU (software emulated).
+# Token indices fit in int32 (codebook=1024). If int64 is truly needed somewhere,
+# enable selectively with jax.experimental.enable_x64() in Python instead.
+# export JAX_ENABLE_X64=1
+
+# LIBTPU_INIT_ARGS — production XLA flags for TPU v5p
+# These tell the XLA compiler to be ultra-aggressive on kernel fusion,
+# collective overlap, and memory management.
+export LIBTPU_INIT_ARGS="
+  --xla_tpu_enable_data_parallel_all_reduce_opt=true
+  --xla_tpu_data_parallel_opt_different_sized_ops=true
+  --xla_tpu_enable_async_collective_fusion=true
+  --xla_tpu_enable_async_collective_fusion_fuse_all_gather=true
+  --xla_tpu_enable_async_collective_fusion_multiple_steps=true
+  --xla_tpu_overlap_compute_collective_tc=true
+  --xla_enable_async_all_gather=true
+  --xla_tpu_enable_latency_hiding_scheduler=true:2
+  --xla_tpu_perform_spmd_cse_prevention=false
+  --xla_tpu_spmd_rng_bit_generator_unsafe=true
+  --xla_tpu_megacore_fusion_allow_ags=false
+  --xla_tpu_enable_aggressive_loop_fusion=true
+  --xla_tpu_enable_experimental_fusion_cost_model=true
+"
+# Remove newlines — LIBTPU expects a single-line string
+LIBTPU_INIT_ARGS=$(echo "$LIBTPU_INIT_ARGS" | tr '\n' ' ' | tr -s ' ')
+export LIBTPU_INIT_ARGS
+
+# Silence TensorFlow spam (Grain uses TF internally)
+export TF_CPP_MIN_LOG_LEVEL=2
 
 echo "[$(date -u)] === Sync ArrayRecord from GCS ==="
 mkdir -p data/arrayrecord

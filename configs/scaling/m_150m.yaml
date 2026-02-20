@@ -1,0 +1,75 @@
+###############################################################################
+# T-Shirt M — 150M params — Taille Chinchilla-optimale pour notre dataset
+#
+# Target: v5p-32 (32 chips, 95 GB HBM each = 3040 GB total)
+# Auto-Sharder: Mesh 2D (data=8, fsdp=4)
+# MXU alignment: head_dim = 1024*2/16 = 128 (1 tile MXU parfait)
+#
+# Chinchilla: 150M × 20 = 3B tokens optimal
+# Notre dataset: ~15M tokens × 10 epochs = 150M eff → sous-Chinchilla
+# MAIS: les données financières sont haute entropie (1 token financier ≈ 20
+# tokens NLP en information), donc le ratio effectif est meilleur.
+#
+# HBM: ~40 GB/chip @ batch 512/chip → confortable dans 95 GB
+###############################################################################
+
+mamba2:
+  d_model: 1024           # 8 blocs MXU
+  d_state: 16
+  n_layers: 24
+  n_heads: 16             # head_dim = 1024*2/16 = 128 (1 MXU tile parfait)
+  expand_factor: 2        # d_inner = 2048 (16 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: false         # 150M → ~300 MB bf16, 40 GB/chip < 95 GB
+
+predictor:
+  hidden_dim: 2048         # 2× d_model
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 1.0e-4
+  weight_decay: 0.01
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 16384        # 512/chip × 32 chips — max throughput
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 250
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.2
+  num_workers: 0
+  prefetch_buffer_size: 128

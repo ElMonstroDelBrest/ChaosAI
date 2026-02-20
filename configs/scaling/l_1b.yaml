@@ -1,0 +1,74 @@
+###############################################################################
+# T-Shirt L — 1B params — Foundation Model sérieux
+#
+# Target: v5p-128 (128 chips, 95 GB HBM each = 12.2 TB total)
+# Auto-Sharder: Mesh 2D (data=32, fsdp=4)
+# MXU alignment: head_dim = 2048*2/32 = 128 (1 tile MXU parfait)
+#
+# Chinchilla: 1B × 20 = 20B tokens optimal
+# FSDP obligatoire: 1B params = ~2 GB bf16. Avec FSDP/4 = 500 MB/chip (léger).
+# Les activations + gradients pèsent plus lourd → remat nécessaire.
+#
+# HBM: ~25 GB/chip avec remat @ batch 256/chip → confortable dans 95 GB
+###############################################################################
+
+mamba2:
+  d_model: 2048           # 16 blocs MXU
+  d_state: 16
+  n_layers: 48
+  n_heads: 32             # head_dim = 2048*2/32 = 128 (1 MXU tile parfait)
+  expand_factor: 2        # d_inner = 4096 (32 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: true          # Obligatoire — activations de 48 layers > HBM sans remat
+
+predictor:
+  hidden_dim: 4096         # 2× d_model
+  n_layers: 2
+  dropout: 0.05            # Moins de dropout pour plus de données
+  z_dim: 64               # Plus large pour model plus gros
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 16        # Blocs plus grands pour séquences longues
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.998          # Plus lent pour gros modèle
+  tau_end: 1.0
+  anneal_epochs: 200
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 5.0e-5               # μP scaling: lr ∝ 1/sqrt(d_model)
+  weight_decay: 0.05        # Plus fort pour gros modèle
+  max_epochs: 100
+  warmup_epochs: 15
+  batch_size: 32768         # 256/chip × 128 chips
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 100  # Plus fréquent sur preemptible v5p-128
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.1            # Plus de data pour gros modèle
+  num_workers: 0
+  prefetch_buffer_size: 256  # Plus de prefetch pour 128 chips

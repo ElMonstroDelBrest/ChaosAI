@@ -13,6 +13,10 @@ Numerical stability:
     C_hat = C * exp(A*cs + offset)
     B_hat = dt * B * exp(-A*cs - offset)
   The offset cancels in C_hat @ B_hat^T, keeping magnitudes bounded.
+
+  CRITICAL: Temporal accumulations (cumsum, state h_final) MUST use float32.
+  bf16 mantissa (7 bits) causes truncation errors that cascade into NaNs
+  around step ~2750 when gradients amplify the accumulated drift.
 """
 
 import jax
@@ -63,10 +67,11 @@ def naive_sequential_scan(
 
         return h, y_t
 
-    h0 = jnp.zeros((Bs, H, N, P), dtype=x.dtype)
+    # Hidden state accumulates over L steps — use float32 to avoid bf16 drift
+    h0 = jnp.zeros((Bs, H, N, P), dtype=jnp.float32)
     _, ys = jax.lax.scan(scan_fn, h0, jnp.arange(L))
-    # ys: (L, B, H, P) -> (B, L, H, P)
-    return jnp.transpose(ys, (1, 0, 2, 3))
+    # ys: (L, B, H, P) -> (B, L, H, P), cast back to input dtype
+    return jnp.transpose(ys, (1, 0, 2, 3)).astype(x.dtype)
 
 
 def chunked_ssd(
@@ -119,7 +124,10 @@ def chunked_ssd(
     C_c = C.reshape(Bs, n_chunks, Cs, H, N)
 
     # Cumulative dt per chunk: (B, n_chunks, Cs, H)
-    cs = jnp.cumsum(dt_c, axis=2)  # cumulative within each chunk
+    # CRITICAL: accumulate in float32 to avoid bf16 truncation drift.
+    # bf16 mantissa = 7 bits → cumsum over 128 steps loses ~4 bits of precision.
+    # This manifests as NaN gradients around step ~2750 of training.
+    cs = jnp.cumsum(dt_c.astype(jnp.float32), axis=2).astype(dt_c.dtype)
 
     # A broadcast: (H, N) -> will be used as A[h, n]
     # decay_factor[b, chunk, t, h, n] = A[h,n] * cs[b, chunk, t, h]
@@ -178,13 +186,20 @@ def chunked_ssd(
         y = y_intra + y_from_state
 
         # Final state: h_final = exp(A*cs_end) * h_init + sum_t(...)
-        decay_end = jnp.exp(A_h * cs_ch[-1])  # (N,) — stable (exp negative)
+        # Compute decay in float32 for numerical safety, then cast back.
+        cs_end_f32 = cs_ch[-1].astype(jnp.float32)
+        A_h_f32 = A_h.astype(jnp.float32)
+        decay_end = jnp.exp(A_h_f32 * cs_end_f32).astype(x_ch.dtype)  # (N,)
         h_final = decay_end[:, None] * h_init  # (N, P)
 
         # Accumulate: B_hat_end[t] = dt[t]*B[t] * exp(A*(cs_end - cs[t]))
-        residual_decay = A_h[None, :] * (cs_ch[-1] - cs_ch)[:, None]  # (Cs, N)
-        B_hat_end = ((dt_ch[:, None] * B_ch) * jnp.exp(residual_decay)).astype(jnp.bfloat16)
-        h_final = h_final + (B_hat_end.T @ x_ch.astype(jnp.bfloat16)).astype(x_ch.dtype)
+        # float32 for the exp to avoid bf16 drift in residual decay
+        cs_f32 = cs_ch.astype(jnp.float32)
+        residual_decay = A_h_f32[None, :] * (cs_end_f32 - cs_f32)[:, None]  # (Cs, N)
+        B_hat_end = ((dt_ch[:, None] * B_ch) * jnp.exp(residual_decay).astype(B_ch.dtype)).astype(jnp.bfloat16)
+        # Accumulate matmul in float32, cast result back to input dtype
+        h_accum = (B_hat_end.astype(jnp.float32).T @ x_ch.astype(jnp.float32))
+        h_final = h_final + h_accum.astype(x_ch.dtype)
 
         return y, h_final
 
