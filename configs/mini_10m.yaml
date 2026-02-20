@@ -1,0 +1,89 @@
+# Mini 10M param model — Strate II reduced + Strate IV multiverse crossing
+# ~9.5M total: 874K (Strate I) + 8.1M (Strate II) + 550K (Strate IV)
+# Chinchilla-near-optimal: 15M tokens × 10 epochs = 150M eff → 15 tok/param
+
+mamba2:
+  d_model: 320         # reduced from 1024
+  d_state: 16
+  n_layers: 6          # reduced from 24
+  n_heads: 5           # head_dim = 320*2/5 = 128 → 1 MXU tile
+  expand_factor: 2     # d_inner = 640
+  conv_kernel: 4
+  encoder_type: mamba
+  exo_clock: true
+  chunk_size: 128      # SSD chunk size — 128 fills one MXU tile
+  use_remat: false     # false for v5p (95 GB HBM)
+
+predictor:
+  hidden_dim: 640      # 2× d_model
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0     # CFM disabled — futures via gaussian noise
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 8192
+  precision: bf16
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 250
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.2
+  num_workers: 0
+  prefetch_buffer_size: 128
+
+# Strate IV — TD-MPC2 + Multiverse Crossing (JAX)
+strate_iv:
+  n_multiverses: 5       # M parallel universes
+  perturbation_sigma: 0.01
+  latent_dim: 128        # planning latent space
+  hidden_dim: 256
+  n_layers: 2
+  n_quantiles: 32        # distributional critic resolution
+  cvar_alpha_min: 0.1    # conservative (divergent multiverse)
+  cvar_alpha_max: 0.4    # aggressive (convergent multiverse)
+  gamma: 0.99
+  lr: 3.0e-4
+  ema_tau: 0.005
+  max_grad_norm: 10.0
+  batch_size: 256
+  buffer_capacity: 100000
+  warmup_steps: 1000
+  update_freq: 1
+  use_planning: true
+  plan_horizon: 5        # MPPI lookahead steps
+  plan_samples: 512      # K trajectory samples
+  plan_iters: 6          # MPPI refinement iterations
+  plan_temperature: 0.5
+  plan_init_std: 0.5
