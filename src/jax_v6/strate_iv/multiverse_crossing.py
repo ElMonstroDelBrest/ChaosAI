@@ -30,19 +30,48 @@ def perturb_latent(
     n_multiverses: int,
     sigma: float,
 ) -> jnp.ndarray:
-    """Generate M perturbed copies of the context latent h_x.
+    """Generate M perturbed copies of h_x via geodesic perturbation on the
+    representation hypersphere — stays on the learned manifold by construction.
+
+    Naive additive Gaussian noise (h_x + ε) moves points off the manifold
+    learned by the JEPA encoder, producing inputs the OT-CFM predictor was
+    never trained on. Instead, we:
+
+      1. Project noise onto the tangent plane at h_x (remove radial component)
+      2. Add scaled tangent noise to h_x
+      3. Re-project to the same L2 norm as h_x (back on the sphere)
+
+    This is a first-order geodesic perturbation on S^(d-1), equivalent to
+    moving along great circles. VICReg's variance regularization naturally
+    pushes representations toward a hypersphere, making this geometrically
+    consistent with the training objective.
 
     Args:
         h_x: (d_model,) JEPA context representation.
         key: PRNG key for reproducibility.
         n_multiverses: Number of parallel universes M.
-        sigma: Perturbation std (small, e.g. 0.01).
+        sigma: Perturbation std on the tangent plane (small, e.g. 0.01).
 
     Returns:
-        (M, d_model) perturbed latent states.
+        (M, d_model) perturbed latent states, all with ||h|| = ||h_x||.
     """
-    noise = jax.random.normal(key, shape=(n_multiverses, h_x.shape[-1]))
-    return h_x[None, :] + sigma * noise
+    d = h_x.shape[-1]
+    noise = jax.random.normal(key, shape=(n_multiverses, d))
+
+    # Step 1: Project noise onto tangent plane at h_x
+    # Remove the component parallel to h_x (radial direction)
+    h_norm = h_x / (jnp.linalg.norm(h_x) + EPS)  # unit direction
+    radial = jnp.sum(noise * h_norm[None, :], axis=-1, keepdims=True)  # (M, 1)
+    tangent_noise = noise - radial * h_norm[None, :]  # (M, d)
+
+    # Step 2: Perturb along tangent directions
+    perturbed = h_x[None, :] + sigma * tangent_noise  # (M, d)
+
+    # Step 3: Re-project to original L2 norm (back on the sphere)
+    r = jnp.linalg.norm(h_x)
+    perturbed = perturbed * (r / (jnp.linalg.norm(perturbed, axis=-1, keepdims=True) + EPS))
+
+    return perturbed
 
 
 def compute_convergence(
