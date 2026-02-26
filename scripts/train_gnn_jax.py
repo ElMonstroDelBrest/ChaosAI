@@ -38,7 +38,7 @@ from flax.training import train_state
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.jax_v6.strate_v.gnn_model import OnChainGNN
-from src.jax_v6.strate_v.data_loader import GraphPairDataset, negative_sampling_jax
+from src.jax_v6.strate_v.data_loader import GraphPairDataset, negative_sampling_jax, load_pyg_as_jraph
 
 
 # ---------------------------------------------------------------------------
@@ -137,19 +137,24 @@ def loss_fn(
         (total_loss, metrics_dict) tuple.
     """
     # --- Encode both graphs ---
+    # Graphs are padded (n_graph=2: real + padding). Take real graph [0].
     node_emb_t = model.apply(params, graph_t, deterministic=True, method=model.encode)
-    graph_emb_t = model.apply(params, graph_t, deterministic=True)
-    graph_emb_t1 = model.apply(params, graph_t1, deterministic=True)
+    graph_emb_t = model.apply(params, graph_t, deterministic=True)  # (2, gnn_dim)
+    graph_emb_t1 = model.apply(params, graph_t1, deterministic=True)  # (2, gnn_dim)
+
+    # Extract real graph embedding (index 0), discard padding graph
+    graph_emb_t = graph_emb_t[0]  # (gnn_dim,)
+    graph_emb_t1 = graph_emb_t1[0]  # (gnn_dim,)
 
     # --- 1. Link prediction loss (on graph_t) ---
+    # Only use edges from the real graph (first n_edge_real edges)
     n_edges = graph_t.senders.shape[0]
-    # Cap positive edges to avoid OOM on large graphs
     n_pos = min(n_edges, 512)
     pos_edges = jnp.stack(
         [graph_t.senders[:n_pos], graph_t.receivers[:n_pos]], axis=1
     )
 
-    n_nodes_t = jnp.sum(graph_t.n_node)
+    n_nodes_t = graph_t.nodes.shape[0]  # total including padding (concrete for JIT)
     neg_src, neg_dst = negative_sampling_jax(
         rng_key, graph_t.senders, graph_t.receivers, n_nodes_t, n_pos
     )
@@ -161,10 +166,8 @@ def loss_fn(
     )
 
     # --- 2. Temporal contrastive loss ---
-    # For single-pair training: each graph produces (gnn_dim,) embedding.
-    # Expand to (1, gnn_dim) for contrastive_loss which expects (B, gnn_dim).
-    emb_t = graph_emb_t[None] if graph_emb_t.ndim == 1 else graph_emb_t
-    emb_t1 = graph_emb_t1[None] if graph_emb_t1.ndim == 1 else graph_emb_t1
+    emb_t = graph_emb_t[None]  # (1, gnn_dim)
+    emb_t1 = graph_emb_t1[None]  # (1, gnn_dim)
     contrastive_loss = model.apply(
         params, emb_t, emb_t1,
         temperature=temperature,
@@ -172,12 +175,10 @@ def loss_fn(
     )
 
     # --- 3. Flow prediction loss ---
-    # Target: exchange_net_flow from graph_t+1 (predict next-hour flow)
-    flow_target = graph_t1.globals.squeeze()  # scalar
-    flow_emb = graph_emb_t[None] if graph_emb_t.ndim == 1 else graph_emb_t
-    flow_target_batched = flow_target[None] if flow_target.ndim == 0 else flow_target
+    flow_target = graph_t1.globals[0].squeeze()  # real graph's flow (index 0)
+    flow_emb = graph_emb_t[None]  # (1, gnn_dim)
     flow_loss = model.apply(
-        params, flow_emb, flow_target_batched,
+        params, flow_emb, flow_target[None],
         method=model.flow_prediction_loss,
     )
 
@@ -200,6 +201,7 @@ def loss_fn(
 # Train step (JIT-compiled)
 # ---------------------------------------------------------------------------
 
+@partial(jax.jit, static_argnums=(1,))
 def train_step(
     state: train_state.TrainState,
     model: OnChainGNN,
@@ -209,9 +211,7 @@ def train_step(
 ):
     """Single training step: forward + backward + optimizer update.
 
-    No @jax.jit — graph sizes vary (18K-31K nodes), so each unique shape
-    would trigger a retrace. The model is tiny (1.5M params), eager mode
-    is fast enough (~10 steps/s on TPU).
+    Graphs are padded to uniform size during preloading, so JIT compiles once.
 
     Args:
         state: Current TrainState (params + optimizer state).
@@ -260,14 +260,52 @@ def main():
     print(f"JAX devices: {jax.devices()}", flush=True)
     print(f"JAX backend: {jax.default_backend()}", flush=True)
 
-    # --- Load dataset ---
+    # --- Load dataset (preload all graphs into memory to avoid 11s/graph I/O) ---
     print(f"Loading graph pairs from {args.graph_dirs}...", flush=True)
     dataset = GraphPairDataset(args.graph_dirs)
     n_pairs = len(dataset)
     if n_pairs == 0:
         print("ERROR: No graph pairs found. Run scripts/build_graphs.py first.")
         sys.exit(1)
-    print(f"Found {n_pairs} consecutive graph pairs.", flush=True)
+    print(f"Found {n_pairs} consecutive graph pairs. Preloading all graphs...", flush=True)
+
+    # Preload: collect unique file paths, load each once, cache as jraph graphs
+    all_files = set()
+    for f_t, f_tp1 in dataset.pairs:
+        all_files.add(f_t)
+        all_files.add(f_tp1)
+    all_files = sorted(all_files)
+    print(f"  {len(all_files)} unique graph files to load...", flush=True)
+    t_preload = time.time()
+    graph_cache = {}
+    for i, f in enumerate(all_files):
+        graph_cache[f] = load_pyg_as_jraph(f)
+        if (i + 1) % 500 == 0:
+            elapsed = time.time() - t_preload
+            print(f"  loaded {i+1}/{len(all_files)} ({elapsed:.0f}s)", flush=True)
+    print(f"  Preloaded {len(graph_cache)} graphs in {time.time()-t_preload:.0f}s", flush=True)
+
+    # Pad all graphs to the same size so JIT compiles once
+    max_nodes = max(int(g.n_node[0]) for g in graph_cache.values()) + 1  # +1 for pad graph
+    max_edges = max(int(g.n_edge[0]) for g in graph_cache.values()) + 1
+    print(f"  Padding all graphs to n_node={max_nodes}, n_edge={max_edges}", flush=True)
+    for f in graph_cache:
+        graph_cache[f] = jraph.pad_with_graphs(
+            graph_cache[f], n_node=max_nodes, n_edge=max_edges, n_graph=2,
+        )
+
+    # Wrap dataset to use cache
+    class CachedDataset:
+        def __init__(self, pairs, cache):
+            self.pairs = pairs
+            self.cache = cache
+        def __len__(self):
+            return len(self.pairs)
+        def __getitem__(self, idx):
+            f_t, f_tp1 = self.pairs[idx]
+            return (self.cache[f_t], self.cache[f_tp1])
+
+    cached_dataset = CachedDataset(dataset.pairs, graph_cache)
 
     # --- Train/val split (80/20, shuffled) ---
     indices = np.arange(n_pairs)
@@ -328,7 +366,7 @@ def main():
                 break
 
             rng, step_key = jax.random.split(rng)
-            graph_t, graph_t1 = dataset[int(idx)]
+            graph_t, graph_t1 = cached_dataset[int(idx)]
 
             state, metrics = train_step(state, model, graph_t, graph_t1, step_key)
             train_losses.append(float(metrics["total"]))
@@ -353,7 +391,7 @@ def main():
             if args.smoke_test and len(val_losses) >= 5:
                 break
             rng, val_key = jax.random.split(rng)
-            graph_t, graph_t1 = dataset[int(idx)]
+            graph_t, graph_t1 = cached_dataset[int(idx)]
             _, val_metrics = loss_fn(
                 state.params, model, graph_t, graph_t1, val_key,
             )
