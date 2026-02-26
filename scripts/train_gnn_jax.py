@@ -200,7 +200,6 @@ def loss_fn(
 # Train step (JIT-compiled)
 # ---------------------------------------------------------------------------
 
-@partial(jax.jit, static_argnums=(1,))
 def train_step(
     state: train_state.TrainState,
     model: OnChainGNN,
@@ -210,9 +209,13 @@ def train_step(
 ):
     """Single training step: forward + backward + optimizer update.
 
+    No @jax.jit — graph sizes vary (18K-31K nodes), so each unique shape
+    would trigger a retrace. The model is tiny (1.5M params), eager mode
+    is fast enough (~10 steps/s on TPU).
+
     Args:
         state: Current TrainState (params + optimizer state).
-        model: OnChainGNN module (static arg, not traced).
+        model: OnChainGNN module.
         graph_t: Graph at time t.
         graph_t1: Graph at time t+1.
         rng_key: PRNG key for negative sampling.
