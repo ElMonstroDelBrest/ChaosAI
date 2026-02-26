@@ -70,15 +70,39 @@ def main():
         sys.exit(1)
     print(f"Computing embeddings for {len(pt_files)} graphs...", flush=True)
 
+    # Preload all graphs into memory (avoids 11s/graph torch.load per inference)
+    import jraph
+    print("Preloading all graphs...", flush=True)
+    t_pre = time.time()
+    graphs = {}
+    for i, pt_file in enumerate(pt_files):
+        graphs[pt_file] = load_pyg_as_jraph(pt_file)
+        if (i + 1) % 500 == 0:
+            print(f"  loaded {i+1}/{len(pt_files)} ({time.time()-t_pre:.0f}s)", flush=True)
+    print(f"  Preloaded {len(graphs)} graphs in {time.time()-t_pre:.0f}s", flush=True)
+
+    # Pad all graphs to uniform size for JIT
+    max_nodes = max(int(g.n_node[0]) for g in graphs.values()) + 1
+    max_edges = max(int(g.n_edge[0]) for g in graphs.values()) + 1
+    print(f"  Padding to n_node={max_nodes}, n_edge={max_edges}", flush=True)
+    for f in graphs:
+        graphs[f] = jraph.pad_with_graphs(graphs[f], n_node=max_nodes, n_edge=max_edges, n_graph=2)
+
+    # JIT-compiled forward pass (single compilation since all shapes are uniform)
+    @jax.jit
+    def forward(params, graph):
+        return model.apply(params, graph, deterministic=True)
+
     # Compute embeddings
     rows = []
     t0 = time.time()
     for i, pt_file in enumerate(pt_files):
-        graph = load_pyg_as_jraph(pt_file)
-        emb = model.apply(params, graph, deterministic=True)
+        graph = graphs[pt_file]
+        emb = forward(params, graph)
 
+        # Padded graph: emb is (2, gnn_dim) — take real graph [0]
         if emb.ndim > 1:
-            emb = emb.squeeze(0)
+            emb = emb[0]
 
         emb_np = np.array(emb)
         timestamp = pt_file.stem  # e.g. "2023-01-15_14"
