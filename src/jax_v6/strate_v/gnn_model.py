@@ -271,17 +271,17 @@ class OnChainGNN(nn.Module):
         self.link_head = BilinearHead(features=self.gnn_dim)
         self.flow_head = nn.Dense(1)
 
-    def _build_graph_idx(self, n_node: Array) -> Array:
+    def _build_graph_idx(self, n_node: Array, total_nodes: int) -> Array:
         """Build per-node graph assignment vector from n_node array.
 
         Args:
             n_node: (G,) number of nodes per graph.
+            total_nodes: Total node count (concrete int for JIT compatibility).
 
         Returns:
             (N_total,) graph index per node.
         """
         n_graphs = n_node.shape[0]
-        total_nodes = jnp.sum(n_node)
         # Create graph index: [0,0,...,0, 1,1,...,1, ...]
         graph_idx = jnp.repeat(
             jnp.arange(n_graphs),
@@ -304,7 +304,8 @@ class OnChainGNN(nn.Module):
         senders = graph.senders
         receivers = graph.receivers
         edge_attr = graph.edges
-        total_nodes = jnp.sum(graph.n_node)
+        # Use nodes.shape[0] (static at trace time) instead of jnp.sum(n_node) (traced)
+        total_nodes = graph.nodes.shape[0]
 
         for i, block in enumerate(self.mp_blocks):
             ea = edge_attr if i == 0 else None
@@ -327,7 +328,8 @@ class OnChainGNN(nn.Module):
         # Build graph assignment vector
         n_node_arr = graph.n_node
         n_graphs = n_node_arr.shape[0]
-        graph_idx = self._build_graph_idx(n_node_arr)
+        total_nodes = node_emb.shape[0]  # concrete shape for JIT
+        graph_idx = self._build_graph_idx(n_node_arr, total_nodes)
 
         # Triple pooling: mean || max || attention
         mean_pool = jax.ops.segment_sum(
