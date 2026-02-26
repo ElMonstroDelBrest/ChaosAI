@@ -1,0 +1,77 @@
+###############################################################################
+# v6e-54M + GNN + CFM — 54M with on-chain GNN fusion and CFM loss enabled
+#
+# Target: v6e-8 (8 chips, 32 GB HBM each = 256 GB total)
+# Auto-Sharder: Mesh (8,1) DP pur
+# MXU alignment: head_dim = 768*2/12 = 128 (1 tile MXU parfait)
+#
+# Changes from v6e_54m.yaml:
+#   cfm_weight: 0.0 → 1.0        (enable Continuous Flow Matching loss)
+#   arrayrecord_dir: → _gnn/      (data with GNN embeddings + gnn_mask)
+#
+# The GNN embeddings are fused in Mamba2Encoder via a gated additive
+# (sigmoid init -2.0 → starts quasi-off, learns to gate in).
+# gnn_mask handles pairs with no on-chain data (mask=0 → zero contribution).
+###############################################################################
+
+mamba2:
+  d_model: 768           # 6 blocs MXU (768/128)
+  d_state: 16
+  n_layers: 14           # Same depth as 26M
+  n_heads: 12            # head_dim = 768*2/12 = 128 (1 MXU tile)
+  expand_factor: 2       # d_inner = 1536 (12 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  gnn_dim: 256
+  use_remat: false       # 54M → ~108 MB bf16, trivial
+
+predictor:
+  hidden_dim: 1536       # 2× d_model (scaled up from 1024)
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 2.0e-4             # μP scaling: 3e-4 × sqrt(512/768) ≈ 2.4e-4, rounded down
+  weight_decay: 0.02
+  max_epochs: 3           # 3 epochs on 520M tokens
+  warmup_epochs: 1        # 1 epoch warmup (7143 steps)
+  batch_size: 4096        # auto-scales: 512 on v6e-8, 4096 on v6e-64
+  precision: "bf16"
+  grad_clip: 10.0          # was 1.0 — too aggressive for d=768 (grads 60K-115K)
+  n_restarts: 2           # 2 cosine cycles over remaining 2 epochs
+  checkpoint_interval: 500
+
+data:
+  token_dir: "data/tokens_1m/"
+  arrayrecord_dir: "data/arrayrecord_1m_gnn/"
+  val_split: 0.1
+  num_workers: 0
+  prefetch_buffer_size: 128
