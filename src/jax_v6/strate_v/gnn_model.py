@@ -262,7 +262,6 @@ class OnChainGNN(nn.Module):
         self.attn_pool = AttentionPool()
 
         # Readout MLP: 3*gnn_dim -> 512 -> gnn_dim
-        pool_dim = 3 * self.gnn_dim
         self.readout_dense1 = nn.Dense(512)
         self.readout_ln1 = nn.LayerNorm()
         self.readout_dense2 = nn.Dense(self.gnn_dim)
@@ -305,11 +304,11 @@ class OnChainGNN(nn.Module):
         senders = graph.senders
         receivers = graph.receivers
         edge_attr = graph.edges
-        n_node = jnp.sum(graph.n_node)
+        total_nodes = jnp.sum(graph.n_node)
 
         for i, block in enumerate(self.mp_blocks):
             ea = edge_attr if i == 0 else None
-            x = block(x, senders, receivers, n_node, edge_attr=ea)
+            x = block(x, senders, receivers, total_nodes, edge_attr=ea)
 
         return x
 
@@ -341,6 +340,10 @@ class OnChainGNN(nn.Module):
 
         max_pool = jax.ops.segment_max(
             node_emb, graph_idx, num_segments=n_graphs
+        )
+        # Guard against -inf from segment_max on padding graphs (0 nodes)
+        max_pool = jnp.where(
+            node_count[:, None] > 0, max_pool, jnp.zeros_like(max_pool)
         )
 
         attn_pool = self.attn_pool(node_emb, graph_idx, n_graphs)
