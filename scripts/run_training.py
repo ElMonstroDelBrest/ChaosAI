@@ -74,6 +74,9 @@ dummy_batch = {
     "target_positions": jnp.zeros((B, max_tgt), dtype=jnp.int32),
     "target_mask": jnp.ones((B, max_tgt), dtype=jnp.bool_),
 }
+if config.mamba2.gnn_dim > 0:
+    dummy_batch["gnn_embeddings"] = jnp.zeros((B, S, config.mamba2.gnn_dim), dtype=jnp.float32)
+    dummy_batch["gnn_mask"] = jnp.zeros((B, S), dtype=jnp.float32)
 
 key = jax.random.PRNGKey(42)
 state = create_train_state(
