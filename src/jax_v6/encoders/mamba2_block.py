@@ -122,7 +122,7 @@ class Mamba2Block(nn.Module):
                 self.n_heads, use_bias=True, name="exo_proj",
                 kernel_init=nn.initializers.zeros,
                 bias_init=nn.initializers.zeros,
-            )(exo_clock)  # (B, L, 2) -> (B, L, n_heads)
+            )(exo_clock)  # (B, L, exo_clock_dim) -> (B, L, n_heads)
             dt = dt + self.dt_max_delta * jnp.tanh(exo_raw)
         elif vol_clock is not None:
             vol_raw = nn.Dense(

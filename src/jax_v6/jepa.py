@@ -42,6 +42,8 @@ class FinJEPA(nn.Module):
     seq_len: int = 128
     chunk_size: int = 128
     use_remat: bool = False
+    gnn_dim: int = 0
+    macro_dim: int = 0
 
     # Predictor config
     pred_hidden_dim: int = 256
@@ -75,6 +77,8 @@ class FinJEPA(nn.Module):
             seq_len=config.embedding.seq_len,
             chunk_size=config.mamba2.chunk_size,
             use_remat=config.mamba2.use_remat,
+            gnn_dim=config.mamba2.gnn_dim,
+            macro_dim=config.mamba2.macro_dim,
             pred_hidden_dim=config.predictor.hidden_dim,
             pred_n_layers=config.predictor.n_layers,
             pred_dropout=config.predictor.dropout,
@@ -101,6 +105,8 @@ class FinJEPA(nn.Module):
             seq_len=self.seq_len,
             chunk_size=self.chunk_size,
             use_remat=self.use_remat,
+            gnn_dim=self.gnn_dim,
+            macro_dim=self.macro_dim,
             name="context_encoder",
         )
 
@@ -157,6 +163,9 @@ class FinJEPA(nn.Module):
         weekend_mask = batch.get("weekend_mask")
         block_mask = batch.get("block_mask")
         exo_clock = batch.get("exo_clock")
+        gnn_embeddings = batch.get("gnn_embeddings")
+        gnn_mask = batch.get("gnn_mask")
+        macro_context = batch.get("macro_context")
         target_positions = batch["target_positions"]
         target_mask = batch["target_mask"]
 
@@ -169,6 +178,9 @@ class FinJEPA(nn.Module):
             weekend_mask=weekend_mask,
             block_mask=block_mask,
             exo_clock=exo_clock,
+            gnn_embeddings=gnn_embeddings,
+            gnn_mask=gnn_mask,
+            macro_context=macro_context,
         )  # (B, S, d_model)
 
         # 2. Target encoder: same architecture, EMA weights, NO masking
@@ -185,6 +197,9 @@ class FinJEPA(nn.Module):
                     weekend_mask=weekend_mask,
                     block_mask=None,  # Target sees everything
                     exo_clock=exo_clock,
+                    gnn_embeddings=gnn_embeddings,
+                    gnn_mask=gnn_mask,
+                    macro_context=macro_context,
                 )
             )
         else:
@@ -195,6 +210,9 @@ class FinJEPA(nn.Module):
                     weekend_mask=weekend_mask,
                     block_mask=None,
                     exo_clock=exo_clock,
+                    gnn_embeddings=gnn_embeddings,
+                    gnn_mask=gnn_mask,
+                    macro_context=macro_context,
                 )
             )  # (B, S, d_model)
 

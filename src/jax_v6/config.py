@@ -20,7 +20,9 @@ class Mamba2Config:
     conv_kernel: int = 4
     encoder_type: str = "mamba"
     exo_clock: bool = True
+    exo_clock_dim: int = 2        # 2 = [RV, Volume], 4 = [RV, Volume, VIX, CreditSpread]
     gnn_dim: int = 0              # GNN on-chain embedding dim (0 = disabled, 256 = Strate V)
+    macro_dim: int = 0            # Macro context dim (0 = disabled, 48 = FRED+COT top-k)
     chunk_size: int = 128  # SSD chunk size — 128 fills one MXU tile exactly
     use_remat: bool = False  # True for v6e (31 GB HBM), False for v5p (95 GB)
 

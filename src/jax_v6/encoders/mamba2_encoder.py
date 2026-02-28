@@ -34,6 +34,8 @@ class Mamba2Encoder(nn.Module):
     seq_len: int = 128
     chunk_size: int = 128
     use_remat: bool = False
+    gnn_dim: int = 0              # GNN on-chain embedding dim (0 = disabled)
+    macro_dim: int = 0             # Macro context dim (0 = disabled)
 
     @staticmethod
     def _sinusoidal_embed(seq_len: int, d_model: int) -> Array:
@@ -79,6 +81,9 @@ class Mamba2Encoder(nn.Module):
         weekend_mask: Array | None = None,
         block_mask: Array | None = None,
         exo_clock: Array | None = None,
+        gnn_embeddings: Array | None = None,
+        gnn_mask: Array | None = None,
+        macro_context: Array | None = None,
     ) -> Array:
         """Encode a sequence of token indices.
 
@@ -86,7 +91,10 @@ class Mamba2Encoder(nn.Module):
             token_indices: (B, S) int64 token indices [0, K-1].
             weekend_mask: (B, S) float {0.0, 1.0} weekend indicator.
             block_mask: (B, S) bool where True = masked (target) positions.
-            exo_clock: (B, S, 2) float exogenous [RV, Volume] clock signals.
+            exo_clock: (B, S, exo_clock_dim) float exogenous clock signals.
+            gnn_embeddings: (B, S, gnn_dim) float GNN on-chain embeddings (or None).
+            gnn_mask: (B, S) float {0.0, 1.0} where GNN data is available (or None).
+            macro_context: (B, S, macro_dim) float macro context vectors (or None).
 
         Returns:
             (B, S, d_model) encoded representations.
@@ -122,6 +130,30 @@ class Mamba2Encoder(nn.Module):
         # Add sinusoidal positional embedding (constant, not learned)
         pos_embed = self._sinusoidal_embed(self.seq_len, self.d_model)
         x = x + pos_embed[:, :S, :]
+
+        # GNN fusion (Strate V): gated additive injection
+        if self.gnn_dim > 0 and gnn_embeddings is not None:
+            gnn_proj = nn.Dense(
+                self.d_model, name="gnn_proj",
+            )(gnn_embeddings)                                        # (B, S, d_model)
+            gnn_gate = nn.sigmoid(nn.Dense(
+                1, name="gnn_gate_proj",
+                bias_init=nn.initializers.constant(-2.0),            # start quasi GNN-off
+            )(gnn_embeddings))                                       # (B, S, 1)
+            if gnn_mask is not None:
+                gnn_gate = gnn_gate * gnn_mask[..., None]            # zero where no data
+            x = x + gnn_gate * gnn_proj
+
+        # Macro context fusion: gated additive injection (same pattern as GNN)
+        if self.macro_dim > 0 and macro_context is not None:
+            macro_proj = nn.Dense(
+                self.d_model, name="macro_proj",
+            )(macro_context)                                             # (B, S, d_model)
+            macro_gate = nn.sigmoid(nn.Dense(
+                1, name="macro_gate_proj",
+                bias_init=nn.initializers.constant(-2.0),                # start quasi macro-off
+            )(macro_context))                                            # (B, S, 1)
+            x = x + macro_gate * macro_proj
 
         # Pass through Mamba-2 stack with clock conditioning
         # nn.remat: recompute each layer during backward instead of

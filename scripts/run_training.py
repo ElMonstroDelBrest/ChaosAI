@@ -66,10 +66,11 @@ model = FinJEPA.from_config(config)
 B = config.training.batch_size // n_devices
 S = config.embedding.seq_len
 max_tgt = int(S * 0.5) + 8
+exo_dim = config.mamba2.exo_clock_dim
 dummy_batch = {
     "token_indices": jnp.zeros((B, S), dtype=jnp.int32),
     "weekend_mask": jnp.zeros((B, S), dtype=jnp.float32),
-    "exo_clock": jnp.zeros((B, S, 2), dtype=jnp.float32),
+    "exo_clock": jnp.zeros((B, S, exo_dim), dtype=jnp.float32),
     "block_mask": jnp.zeros((B, S), dtype=jnp.bool_),
     "target_positions": jnp.zeros((B, max_tgt), dtype=jnp.int32),
     "target_mask": jnp.ones((B, max_tgt), dtype=jnp.bool_),
@@ -77,6 +78,8 @@ dummy_batch = {
 if config.mamba2.gnn_dim > 0:
     dummy_batch["gnn_embeddings"] = jnp.zeros((B, S, config.mamba2.gnn_dim), dtype=jnp.float32)
     dummy_batch["gnn_mask"] = jnp.zeros((B, S), dtype=jnp.float32)
+if config.mamba2.macro_dim > 0:
+    dummy_batch["macro_context"] = jnp.zeros((B, S, config.mamba2.macro_dim), dtype=jnp.float32)
 
 key = jax.random.PRNGKey(42)
 state = create_train_state(
@@ -121,7 +124,19 @@ train_loader = create_dataloader(
     worker_count=config.data.num_workers,
     prefetch_buffer_size=config.data.prefetch_buffer_size,
     gnn_dim=config.mamba2.gnn_dim,
+    exo_clock_dim=config.mamba2.exo_clock_dim,
 )
+
+# ── Macro context (optional) ──
+macro_ctx = None
+if config.mamba2.macro_dim > 0:
+    macro_path = os.environ.get("MACRO_CONTEXT_PATH", "data/macro/macro_context.npz")
+    if os.path.exists(macro_path):
+        from src.jax_v6.data.macro_loader import MacroContext
+        macro_ctx = MacroContext(macro_path, macro_dim=config.mamba2.macro_dim)
+        log.info("Macro context loaded: dim=%d from %s", macro_ctx.macro_dim, macro_path)
+    else:
+        log.warning("macro_dim=%d but %s not found — macro_context will be zeros", config.mamba2.macro_dim, macro_path)
 
 # ── Preemption watcher ──
 watcher = PreemptionWatcher()
@@ -152,6 +167,12 @@ for batch in train_loader:
         break
 
     batch = {k: jnp.array(v) for k, v in batch.items() if not isinstance(v, (str, bytes))}
+    # Inject macro context (global signals, not per-record)
+    if macro_ctx is not None:
+        local_B = batch["token_indices"].shape[0]
+        batch["macro_context"] = jnp.array(
+            macro_ctx.get_random_batch_context(local_B, config.embedding.seq_len)
+        )
     batch = shard_batch(batch, mesh)
     state, metrics = train_step(state, batch, model)
 

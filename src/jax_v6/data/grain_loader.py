@@ -21,8 +21,6 @@ import os
 from pathlib import Path
 
 import grain.python as grain
-import jax
-import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 
@@ -31,8 +29,14 @@ log = logging.getLogger(__name__)
 from ..masking import generate_batch_masks
 
 
-def _parse_example(serialized: bytes, seq_len: int = 128) -> dict:
-    """Parse a tf.train.Example protobuf into numpy arrays."""
+def _parse_example(serialized: bytes, seq_len: int = 128, gnn_dim: int = 0,
+                   exo_clock_dim: int = 2) -> dict:
+    """Parse a tf.train.Example protobuf into numpy arrays.
+
+    Args:
+        exo_clock_dim: expected exo_clock dimension (2 or 4). If the record
+            contains a different dim, it is padded with zeros or truncated.
+    """
     example = tf.train.Example()
     example.ParseFromString(serialized)
     features = example.features.feature
@@ -40,17 +44,44 @@ def _parse_example(serialized: bytes, seq_len: int = 128) -> dict:
     token_indices = np.array(features["token_indices"].int64_list.value, dtype=np.int64)
     weekend_mask = np.array(features["weekend_mask"].float_list.value, dtype=np.float32)
     exo_clock_flat = np.array(features["exo_clock"].float_list.value, dtype=np.float32)
-    exo_clock = exo_clock_flat.reshape(seq_len, 2)
+
+    # Detect stored exo_clock dim from the record (if metadata present)
+    if "exo_clock_dim" in features:
+        stored_dim = int(features["exo_clock_dim"].int64_list.value[0])
+    else:
+        stored_dim = 2  # legacy records are always 2D
+
+    exo_clock = exo_clock_flat.reshape(seq_len, stored_dim)
+
+    # Adapt to requested exo_clock_dim (pad or truncate)
+    if stored_dim < exo_clock_dim:
+        pad_width = exo_clock_dim - stored_dim
+        exo_clock = np.pad(exo_clock, ((0, 0), (0, pad_width)), constant_values=0.0)
+    elif stored_dim > exo_clock_dim:
+        exo_clock = exo_clock[:, :exo_clock_dim]
+
     pair_name = features["pair_name"].bytes_list.value[0].decode("utf-8")
     original_len = int(features["original_len"].int64_list.value[0])
 
-    return {
+    result = {
         "token_indices": token_indices,
         "weekend_mask": weekend_mask,
         "exo_clock": exo_clock,
         "pair_name": pair_name,
         "original_len": original_len,
     }
+
+    # GNN on-chain embeddings (Strate V) — present only when gnn_dim > 0
+    if gnn_dim > 0 and "gnn_embeddings" in features:
+        gnn_flat = np.array(features["gnn_embeddings"].float_list.value, dtype=np.float32)
+        result["gnn_embeddings"] = gnn_flat.reshape(seq_len, gnn_dim)
+        result["gnn_mask"] = np.array(features["gnn_mask"].float_list.value, dtype=np.float32)
+    elif gnn_dim > 0:
+        # Field not in record — fill zeros (backward compat with old ArrayRecords)
+        result["gnn_embeddings"] = np.zeros((seq_len, gnn_dim), dtype=np.float32)
+        result["gnn_mask"] = np.zeros(seq_len, dtype=np.float32)
+
+    return result
 
 
 def _pair_to_split(pair_name: str, val_ratio: float = 0.2) -> str:
@@ -68,14 +99,19 @@ class ParseAndMask(grain.MapTransform):
         mask_ratio: float = 0.5,
         block_size_min: int = 4,
         block_size_max: int = 8,
+        gnn_dim: int = 0,
+        exo_clock_dim: int = 2,
     ):
         self.seq_len = seq_len
         self.mask_ratio = mask_ratio
         self.block_size_min = block_size_min
         self.block_size_max = block_size_max
+        self.gnn_dim = gnn_dim
+        self.exo_clock_dim = exo_clock_dim
 
     def map(self, serialized: bytes) -> dict:
-        parsed = _parse_example(serialized, self.seq_len)
+        parsed = _parse_example(serialized, self.seq_len, gnn_dim=self.gnn_dim,
+                                exo_clock_dim=self.exo_clock_dim)
         rng = np.random.default_rng()
 
         # Pre-compute block mask (numpy, not JAX)
@@ -101,7 +137,7 @@ class ParseAndMask(grain.MapTransform):
         padded_positions[:n_targets] = target_positions[:n_targets]
         target_mask[:n_targets] = True
 
-        return {
+        result = {
             "token_indices": parsed["token_indices"],
             "weekend_mask": parsed["weekend_mask"],
             "exo_clock": parsed["exo_clock"],
@@ -110,20 +146,24 @@ class ParseAndMask(grain.MapTransform):
             "target_mask": target_mask,
         }
 
+        # GNN on-chain embeddings (Strate V)
+        if self.gnn_dim > 0 and "gnn_embeddings" in parsed:
+            result["gnn_embeddings"] = parsed["gnn_embeddings"]
+            result["gnn_mask"] = parsed["gnn_mask"]
+
+        return result
+
 
 def _auto_worker_count(requested: int) -> int:
-    """Resolve worker_count: 0 means auto-detect from os.cpu_count().
+    """Resolve worker_count: 0 means in-process (no multiprocessing).
 
-    Capped at 32 to avoid over-subscribing (diminishing returns past that).
-    Minimum 2 to keep the pipeline overlapping IO and compute.
+    Values > 0 are used as-is. 0 means run in the main process,
+    avoiding JAX TPU conflicts in Grain worker subprocesses.
     """
-    if requested > 0:
-        return requested
-    cpus = os.cpu_count() or 4
-    count = min(cpus, 32)
-    count = max(count, 2)
-    log.info("Grain worker_count auto-detected: %d (cpu_count=%s)", count, cpus)
-    return count
+    if requested == 0:
+        log.info("Grain worker_count=0: running in main process (no multiprocessing)")
+        return 0
+    return requested
 
 
 def create_dataloader(
@@ -138,6 +178,8 @@ def create_dataloader(
     worker_count: int = 0,
     prefetch_buffer_size: int = 4,
     seed: int = 42,
+    gnn_dim: int = 0,
+    exo_clock_dim: int = 2,
 ) -> grain.DataLoader:
     """Create a Grain DataLoader for ArrayRecord shards.
 
@@ -157,6 +199,8 @@ def create_dataloader(
     Returns:
         grain.DataLoader yielding batched dicts of numpy arrays.
     """
+    import jax  # lazy import — avoid TPU init in Grain worker processes
+
     worker_count = _auto_worker_count(worker_count)
 
     ar_dir = Path(arrayrecord_dir)
@@ -194,6 +238,8 @@ def create_dataloader(
             mask_ratio=mask_ratio,
             block_size_min=block_size_min,
             block_size_max=block_size_max,
+            gnn_dim=gnn_dim,
+            exo_clock_dim=exo_clock_dim,
         ),
         grain.Batch(batch_size=batch_size // jax.process_count(), drop_remainder=True),
     ]
@@ -207,3 +253,18 @@ def create_dataloader(
     )
 
     return loader
+
+
+def count_train_records(arrayrecord_dir: str, val_ratio: float = 0.2) -> int:
+    """Count training records from manifest (lightweight, no Grain source needed)."""
+    ar_dir = Path(arrayrecord_dir)
+    manifest_path = ar_dir / "manifest.json"
+
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+
+    total = 0
+    for shard_info in manifest["shards"]:
+        if _pair_to_split(shard_info["pair"], val_ratio) == "train":
+            total += shard_info.get("count", 0)
+    return total
