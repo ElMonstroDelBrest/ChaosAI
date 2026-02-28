@@ -254,6 +254,7 @@ class TDMPC2Agent:
         critic_opt_state: PyTree,
         taus: jnp.ndarray,
         batch: dict[str, jnp.ndarray],
+        rng: jax.random.PRNGKey,
     ) -> tuple[PyTree, PyTree, PyTree, PyTree, PyTree, PyTree, PyTree, dict[str, jnp.ndarray]]:
         """JIT-compiled joint update of world model, critic, and actor."""
         cfg = self.config
@@ -303,14 +304,38 @@ class TDMPC2Agent:
         )
         target_q = reward[:, None] + cfg.gamma * (1.0 - done[:, None]) * q_next
 
+        # CQL: sample random actions for conservative regularization
+        rng_cql, rng = jax.random.split(rng)
+        B = obs.shape[0]
+        action_dim = action.shape[-1]
+        random_actions = jax.random.uniform(
+            rng_cql, shape=(B * cfg.cql_n_random, action_dim),
+            minval=-1.0, maxval=1.0,
+        )
+        z_tiled = jnp.tile(z, (cfg.cql_n_random, 1))  # (B*N, latent_dim)
+
         def critic_loss_fn(c_p):
             q1, q2 = self.critic_module.apply(c_p, z, action)
-            return (
+            td_loss = (
                 quantile_huber_loss(q1, target_q, taus)
                 + quantile_huber_loss(q2, target_q, taus)
             )
 
-        critic_loss, critic_grads = jax.value_and_grad(critic_loss_fn)(critic_params)
+            # CQL penalty: push down Q on random actions, push up on data actions
+            q_random = self.critic_module.apply(
+                c_p, z_tiled, random_actions, method=EnsembleCritic.min,
+            )  # (B*N, n_quantiles)
+            q_random_mean = cvar_from_quantiles(q_random, 0.5).mean()
+
+            q_data = self.critic_module.apply(
+                c_p, z, action, method=EnsembleCritic.min,
+            )  # (B, n_quantiles)
+            q_data_mean = cvar_from_quantiles(q_data, 0.5).mean()
+
+            cql_penalty = cfg.cql_alpha * (q_random_mean - q_data_mean)
+            return td_loss + cql_penalty, cql_penalty
+
+        (critic_loss, cql_loss), critic_grads = jax.value_and_grad(critic_loss_fn, has_aux=True)(critic_params)
         critic_grads = optax.clip_by_global_norm(cfg.max_grad_norm).update(critic_grads, None)[0]
         c_updates, critic_opt_state = self.critic_opt.update(critic_grads, critic_opt_state, critic_params)
         critic_params = optax.apply_updates(critic_params, c_updates)
@@ -340,6 +365,7 @@ class TDMPC2Agent:
             "loss/reward": reward_loss,
             "loss/critic": critic_loss,
             "loss/actor": actor_loss,
+            "loss/cql": cql_loss,
         }
 
         return (
@@ -350,6 +376,7 @@ class TDMPC2Agent:
 
     def update(self, batch: dict[str, jnp.ndarray]) -> dict[str, float]:
         """Joint update from one replay batch. Delegates to JIT-compiled _update_jit."""
+        self._rng, rng_update = jax.random.split(self._rng)
         (
             self.wm_params,
             self.actor_params,
@@ -369,6 +396,7 @@ class TDMPC2Agent:
             self.critic_opt_state,
             self.taus,
             batch,
+            rng_update,
         )
         return {k: float(v) for k, v in metrics.items()}
 

@@ -20,6 +20,7 @@ class Mamba2Config:
     conv_kernel: int = 4
     encoder_type: str = "mamba"
     exo_clock: bool = True
+    gnn_dim: int = 0              # GNN on-chain embedding dim (0 = disabled, 256 = Strate V)
     chunk_size: int = 128  # SSD chunk size — 128 fills one MXU tile exactly
     use_remat: bool = False  # True for v6e (31 GB HBM), False for v5p (95 GB)
 
@@ -91,28 +92,59 @@ class DataConfig:
 class StrateIVJAXConfig:
     """TD-MPC2 + Multiverse Crossing config for JAX Strate IV."""
 
+    # Dual-encoder dimensions
+    micro_emb_dim: int = 1536          # 2 × d_model (mean + last pooling)
+    macro_emb_dim: int = 1536          # 2 × d_model_macro
+    n_convergence_features: int = 5    # per timeframe
+    cross_tf_features: int = 1         # cosine similarity micro↔macro
+    revin_features: int = 5            # volatility regime
+    return_features: int = 1           # forward return
+
+    # Multiverse
     n_multiverses: int = 5
     perturbation_sigma: float = 0.01
-    latent_dim: int = 128
-    hidden_dim: int = 256
-    n_layers: int = 2
+
+    # World model (scaled up for dual obs)
+    latent_dim: int = 256
+    hidden_dim: int = 512
+    n_layers: int = 3
+
+    # Critic
     n_quantiles: int = 32
     cvar_alpha_min: float = 0.1
     cvar_alpha_max: float = 0.4
+
+    # RL
     gamma: float = 0.99
     lr: float = 3e-4
     ema_tau: float = 0.005
     max_grad_norm: float = 10.0
     batch_size: int = 256
-    buffer_capacity: int = 100_000
+    buffer_capacity: int = 200_000
     warmup_steps: int = 1_000
     update_freq: int = 1
+
+    # CQL regularization (offline RL)
+    cql_alpha: float = 1.0
+    cql_n_random: int = 10
+
+    # Planning (MPPI)
     use_planning: bool = True
     plan_horizon: int = 5
     plan_samples: int = 512
     plan_iters: int = 6
     plan_temperature: float = 0.5
     plan_init_std: float = 0.5
+
+    # Transaction cost
+    tc_rate: float = 0.0008
+
+    @property
+    def obs_dim(self) -> int:
+        return (self.micro_emb_dim + self.macro_emb_dim
+                + 2 * self.n_convergence_features
+                + self.cross_tf_features + self.revin_features
+                + self.return_features)
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,50 @@
+codebook:
+  commitment_weight: 0.25
+  dead_threshold: 2
+  ema_decay: 0.99
+  eps: 1.0e-05
+  latent_dim: 64
+  num_codes: 1024
+  # Phase C — FSQ: [8,8,8,2] → 8×8×8×2 = 1024 codes, 4-dim grid (proj 64→4→64)
+  # Guarantees full codebook utilization — no collapse on fat-tail crypto events.
+  # Set to [] to revert to SphericalCodebook (VQ-VAE).
+  fsq_levels: [8, 8, 8, 2]
+data:
+  data_path: data/ohlcv_v5/
+  num_workers: 16
+  val_split: 0.2
+decoder:
+  hidden_channels: 128
+  kernel_size: 3
+  latent_dim: 64
+  n_layers: 4
+  out_channels: 5
+  patch_length: 16
+encoder:
+  dilation_base: 2
+  hidden_channels: 128
+  in_channels: 5
+  kernel_size: 3
+  latent_dim: 64
+  n_layers: 4
+loss:
+  commitment_beta: 0.25
+  huber_delta: 1.0
+  sdtw_alpha: 0.1
+  sdtw_gamma: 0.1
+patch:
+  n_channels: 5
+  patch_length: 16
+  stride: 16
+revin:
+  affine: false
+  eps: 1.0e-05
+training:
+  batch_size: 512
+  lr: 0.0003
+  max_epochs: 30
+  num_patches: 32
+  patience: 5
+  precision: bf16-mixed
+  warmup_epochs: 5
+  weight_decay: 0.01
