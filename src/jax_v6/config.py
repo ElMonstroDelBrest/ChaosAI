@@ -60,7 +60,7 @@ class VICRegConfig:
 @dataclass(frozen=True)
 class EMAConfig:
     tau_start: float = 0.996
-    tau_end: float = 0.999
+    tau_end: float = 1.0
     anneal_epochs: int = 100
 
 

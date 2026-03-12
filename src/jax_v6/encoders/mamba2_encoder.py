@@ -190,6 +190,10 @@ class Mamba2Encoder(nn.Module):
         #   "dots"  — save matmul outputs, recompute elementwise ops
         #             (better memory/compute tradeoff at 1B+ params)
         if self.use_remat:
+            if self.remat_policy not in ("full", "dots"):
+                raise ValueError(
+                    f"Unknown remat_policy '{self.remat_policy}'; expected 'full' or 'dots'"
+                )
             if self.remat_policy == "dots":
                 _policy = jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims
             else:  # "full" — recompute everything (default, most memory-efficient)
