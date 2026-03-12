@@ -264,6 +264,12 @@ class TDMPC2Agent:
         next_obs = batch["next_obs"]
         done = batch["done"]
 
+        # ---- 0. Bifurcation-modulated CQL alpha ----
+        # High bifurcation → chaotic markets → more conservative (higher CQL penalty).
+        # Low bifurcation → universe consensus → relax CQL to maximize alpha.
+        mean_bif = jnp.mean(batch["bifurcation_index"])
+        effective_cql_alpha = cfg.cql_alpha * (1.0 + cfg.bifurcation_cql_scale * mean_bif)
+
         # ---- 1. World model loss ----
         def wm_loss_fn(wm_p):
             z = self.world_model.apply(wm_p, obs, method=WorldModel.encode)
@@ -332,7 +338,7 @@ class TDMPC2Agent:
             )  # (B, n_quantiles)
             q_data_mean = cvar_from_quantiles(q_data, 0.5).mean()
 
-            cql_penalty = cfg.cql_alpha * (q_random_mean - q_data_mean)
+            cql_penalty = effective_cql_alpha * (q_random_mean - q_data_mean)
             return td_loss + cql_penalty, cql_penalty
 
         (critic_loss, cql_loss), critic_grads = jax.value_and_grad(critic_loss_fn, has_aux=True)(critic_params)
@@ -366,6 +372,7 @@ class TDMPC2Agent:
             "loss/critic": critic_loss,
             "loss/actor": actor_loss,
             "loss/cql": cql_loss,
+            "train/effective_cql_alpha": effective_cql_alpha,
         }
 
         return (
@@ -376,6 +383,9 @@ class TDMPC2Agent:
 
     def update(self, batch: dict[str, jnp.ndarray]) -> dict[str, float]:
         """Joint update from one replay batch. Delegates to JIT-compiled _update_jit."""
+        # Ensure bifurcation_index is always present (zeros if not in buffer)
+        if "bifurcation_index" not in batch:
+            batch = {**batch, "bifurcation_index": jnp.zeros(batch["obs"].shape[0])}
         self._rng, rng_update = jax.random.split(self._rng)
         (
             self.wm_params,
