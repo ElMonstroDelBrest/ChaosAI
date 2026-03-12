@@ -54,10 +54,11 @@ def load_buffer(buffer_dir: str, episode_len: int, val_ratio: float = 0.2):
             continue
         data = np.load(path)
         h, v, r = data["h_last"], data["vol"], data["returns"]
+        bif = data["bifurcation_index"] if "bifurcation_index" in data else np.zeros(h.shape[0], dtype=np.float32)
         if h.shape[0] < min_len:
             continue
         bucket = int(hashlib.md5(pair.encode()).hexdigest(), 16) % 1000
-        (val if bucket < int(val_ratio * 1000) else train).append((pair, h, v, r))
+        (val if bucket < int(val_ratio * 1000) else train).append((pair, h, v, r, bif))
     log.info("Buffer: %d train, %d val, d_model=%d", len(train), len(val), d_model)
     return train, val, d_model
 
@@ -68,6 +69,8 @@ def sample_portfolio_windows(
     rng: np.random.Generator,
     n_portfolios: int,
     k_assets: int,
+    use_per: bool = False,
+    per_alpha: float = 0.6,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Sample N portfolios of K assets each, pre-sliced to windows.
 
@@ -83,10 +86,22 @@ def sample_portfolio_windows(
     r = np.zeros((n_portfolios, k_assets, win_len), dtype=np.float32)
 
     for i in range(n_portfolios):
-        # Sample K distinct assets
-        asset_indices = rng.choice(len(assets), size=k_assets, replace=k_assets > len(assets))
+        # PER: weight asset selection by mean bifurcation_index per asset
+        # High bifurcation = chaotic regime = more informative transitions → sample more
+        if use_per and len(assets) > 1:
+            asset_priorities = np.array(
+                [(a[4].mean() + 1e-5) ** per_alpha for a in assets],
+                dtype=np.float64,
+            )
+            asset_weights = asset_priorities / asset_priorities.sum()
+            asset_indices = rng.choice(
+                len(assets), size=k_assets,
+                replace=k_assets > len(assets), p=asset_weights,
+            )
+        else:
+            asset_indices = rng.choice(len(assets), size=k_assets, replace=k_assets > len(assets))
         for j, ai in enumerate(asset_indices):
-            _, h_a, v_a, r_a = assets[ai]
+            _, h_a, v_a, r_a, bif_a = assets[ai]
             max_start = max(h_a.shape[0] - episode_len - 1, 1)
             si = rng.integers(max_start)
             h[i, j] = h_a[si:si + win_len]
@@ -353,7 +368,8 @@ def main():
     while step_count < cfg.total_steps:
         # ── Sample N×K windows (numpy) ──
         h_np, v_np, r_np = sample_portfolio_windows(
-            train_assets, episode_len, np_rng, N, K)
+            train_assets, episode_len, np_rng, N, K,
+            use_per=cfg.use_per, per_alpha=cfg.per_alpha)
 
         # ── Collect N portfolios in parallel (Ape-X noise) ──
         key, *ep_keys = jax.random.split(key, N + 1)
@@ -434,7 +450,8 @@ def main():
             t_ev = time.time()
 
             h_ev, v_ev, r_ev = sample_portfolio_windows(
-                val_assets, episode_len, np_rng, n_eval, K)
+                val_assets, episode_len, np_rng, n_eval, K,
+                use_per=False)
             key, *ev_keys = jax.random.split(key, n_eval + 1)
             rewards = batched_eval(
                 agent_state.q_params,
