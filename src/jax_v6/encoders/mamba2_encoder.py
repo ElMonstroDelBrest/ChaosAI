@@ -36,6 +36,7 @@ class Mamba2Encoder(nn.Module):
     use_remat: bool = False
     gnn_dim: int = 0              # GNN on-chain embedding dim (0 = disabled)
     macro_dim: int = 0             # Macro context dim (0 = disabled)
+    use_macro_cross_attn: bool = False  # True = cross-attn macro → prefix token; False = legacy gated
 
     @staticmethod
     def _sinusoidal_embed(seq_len: int, d_model: int) -> Array:
@@ -144,16 +145,40 @@ class Mamba2Encoder(nn.Module):
                 gnn_gate = gnn_gate * gnn_mask[..., None]            # zero where no data
             x = x + gnn_gate * gnn_proj
 
-        # Macro context fusion: gated additive injection (same pattern as GNN)
+        # Macro context conditioning.
+        # Two modes controlled by use_macro_cross_attn:
+        #   False (legacy): gated additive injection at every timestep.
+        #   True  (v6.1):   cross-attention — macro conditions the prefix token only.
+        #                   Query = first-token representation (learns "what macro matters now").
+        #                   Key/Value = mean-pooled macro (low-frequency prior).
+        #                   Output added to x[:, 0, :] — Mamba recurrence propagates it forward.
+        #                   Saves SSM capacity: the model no longer needs to "remember" Fed rates
+        #                   as a temporal feature at every position.
         if self.macro_dim > 0 and macro_context is not None:
-            macro_proj = nn.Dense(
-                self.d_model, name="macro_proj",
-            )(macro_context)                                             # (B, S, d_model)
-            macro_gate = nn.sigmoid(nn.Dense(
-                1, name="macro_gate_proj",
-                bias_init=nn.initializers.constant(-2.0),                # start quasi macro-off
-            )(macro_context))                                            # (B, S, 1)
-            x = x + macro_gate * macro_proj
+            if self.use_macro_cross_attn:
+                macro_agg = macro_context.mean(axis=1)  # (B, macro_dim) mean-pool across time
+                k = nn.Dense(self.d_model, use_bias=False, name="macro_k_proj")(macro_agg)
+                v = nn.Dense(self.d_model, use_bias=False, name="macro_v_proj")(macro_agg)
+                q = nn.Dense(self.d_model, use_bias=False, name="macro_q_proj")(x[:, 0, :])
+                scale = jnp.sqrt(jnp.float32(self.d_model))
+                attn = jax.nn.sigmoid((q * k).sum(-1, keepdims=True) / scale)  # (B, 1)
+                macro_cond = attn * v                                            # (B, d_model)
+                macro_cond = nn.Dense(
+                    self.d_model, name="macro_out_proj",
+                    bias_init=nn.initializers.zeros,
+                    kernel_init=nn.initializers.zeros,  # zero-init: no disruption at init
+                )(macro_cond)                                                    # (B, d_model)
+                x = x.at[:, 0, :].add(macro_cond)
+            else:
+                # Legacy: gated additive injection at every step (backward compat)
+                macro_proj = nn.Dense(
+                    self.d_model, name="macro_proj",
+                )(macro_context)                                             # (B, S, d_model)
+                macro_gate = nn.sigmoid(nn.Dense(
+                    1, name="macro_gate_proj",
+                    bias_init=nn.initializers.constant(-2.0),
+                )(macro_context))                                            # (B, S, 1)
+                x = x + macro_gate * macro_proj
 
         # Pass through Mamba-2 stack with clock conditioning
         # nn.remat: recompute each layer during backward instead of

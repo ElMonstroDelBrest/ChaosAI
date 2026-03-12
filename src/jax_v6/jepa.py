@@ -21,7 +21,7 @@ from .config import StrateIIConfig
 from .encoders.mamba2_encoder import Mamba2Encoder
 from .predictors.predictor import Predictor
 from .predictors.flow_predictor import FlowPredictor
-from .losses.vicreg import vicreg_loss
+from .losses.vicreg import invariance_loss, vicreg_loss, barlow_twins_loss
 
 
 class FinJEPA(nn.Module):
@@ -44,6 +44,7 @@ class FinJEPA(nn.Module):
     use_remat: bool = False
     gnn_dim: int = 0
     macro_dim: int = 0
+    use_macro_cross_attn: bool = False
 
     # Predictor config
     pred_hidden_dim: int = 256
@@ -56,11 +57,12 @@ class FinJEPA(nn.Module):
     cfm_n_steps: int = 2
     cfm_ot: bool = True
 
-    # VICReg config
+    # VICReg / Barlow Twins config
     inv_weight: float = 25.0
     var_weight: float = 25.0
     cov_weight: float = 1.0
     var_gamma: float = 1.0
+    expander_dim: int = 0  # 0 = standard VICReg; >0 = Barlow Twins in expander space
 
     @classmethod
     def from_config(cls, config: StrateIIConfig) -> "FinJEPA":
@@ -79,6 +81,7 @@ class FinJEPA(nn.Module):
             use_remat=config.mamba2.use_remat,
             gnn_dim=config.mamba2.gnn_dim,
             macro_dim=config.mamba2.macro_dim,
+            use_macro_cross_attn=config.mamba2.use_macro_cross_attn,
             pred_hidden_dim=config.predictor.hidden_dim,
             pred_n_layers=config.predictor.n_layers,
             pred_dropout=config.predictor.dropout,
@@ -90,6 +93,7 @@ class FinJEPA(nn.Module):
             var_weight=config.vicreg.var_weight,
             cov_weight=config.vicreg.cov_weight,
             var_gamma=config.vicreg.var_gamma,
+            expander_dim=config.vicreg.expander_dim,
         )
 
     def setup(self):
@@ -107,6 +111,7 @@ class FinJEPA(nn.Module):
             use_remat=self.use_remat,
             gnn_dim=self.gnn_dim,
             macro_dim=self.macro_dim,
+            use_macro_cross_attn=self.use_macro_cross_attn,
             name="context_encoder",
         )
 
@@ -134,6 +139,9 @@ class FinJEPA(nn.Module):
             self.flow_predictor = None
 
         self.output_proj = nn.Dense(self.codebook_dim, name="output_proj")
+
+        if self.expander_dim > 0:
+            self.expander = nn.Dense(self.expander_dim, name="expander")
 
     def __call__(
         self,
@@ -233,16 +241,36 @@ class FinJEPA(nn.Module):
         h_tgt_flat = jax.lax.stop_gradient(h_y_tgt).reshape(-1, D)    # (B*N_tgt, D)
         mask_flat = target_mask.reshape(-1).astype(jnp.float32)        # (B*N_tgt,)
 
-        # 6. VICReg loss (masked)
-        loss_dict = vicreg_loss(
-            h_pred_flat, h_tgt_flat,
-            inv_weight=self.inv_weight,
-            var_weight=self.var_weight,
-            cov_weight=self.cov_weight,
-            var_gamma=self.var_gamma,
-            mask=mask_flat,
-        )
-        total_loss = loss_dict["total"]
+        # 6. Loss: invariance (L2-normalized cosine) + Barlow Twins or VICReg
+        if self.expander_dim > 0:
+            # L2 normalize before invariance → cosine alignment (prevents magnitude collapse)
+            z_pred_inv = h_pred_flat / (jnp.linalg.norm(h_pred_flat, axis=-1, keepdims=True) + 1e-8)
+            z_tgt_inv = h_tgt_flat / (jnp.linalg.norm(h_tgt_flat, axis=-1, keepdims=True) + 1e-8)
+            inv = invariance_loss(z_pred_inv, z_tgt_inv, mask_flat)
+
+            # Barlow Twins in expander space (separate from invariance gradient)
+            # Single shared expander — stop_grad on input prevents target encoder update
+            z_pred_vc = self.expander(h_pred_flat)
+            z_tgt_vc = self.expander(jax.lax.stop_gradient(h_tgt_flat))
+            bt = barlow_twins_loss(z_pred_vc, z_tgt_vc, mask=mask_flat)
+
+            total_loss = self.inv_weight * inv + self.var_weight * bt["total"]
+            loss_dict = {
+                "total": total_loss,
+                "invariance": inv,
+                "variance": bt["on_diag"],
+                "covariance": bt["off_diag"],
+            }
+        else:
+            loss_dict = vicreg_loss(
+                h_pred_flat, h_tgt_flat,
+                inv_weight=self.inv_weight,
+                var_weight=self.var_weight,
+                cov_weight=self.cov_weight,
+                var_gamma=self.var_gamma,
+                mask=mask_flat,
+            )
+            total_loss = loss_dict["total"]
 
         # 7. CFM loss (Phase D) — train v_theta to transport N(0,I) -> h_y_tgt
         cfm_loss = jnp.float32(0.0)
