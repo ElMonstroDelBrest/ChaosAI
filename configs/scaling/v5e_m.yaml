@@ -1,0 +1,74 @@
+###############################################################################
+# v5e-M — ~200M params — Run principal
+#
+# Target: v5e-64 (64 chips, 16 GB HBM each = 1024 GB total)
+# Zone: europe-west4-b (même région que GCS → egress gratuit)
+# Auto-Sharder: Mesh 2D (data=8, fsdp=8)
+# MXU alignment: head_dim = 1024*2/16 = 128 (1 tile MXU parfait)
+#
+# HBM budget 16 GB/chip:
+#   Params FSDP-8: ~50 MB/chip | Opt state: ~150 MB/chip
+#   Activations: ~1.5 GB/chip @ batch 128/chip → total ~1.7 GB → confortable
+# Batch réduit vs v6e (8192 vs 16384) à cause du HBM 2× plus serré
+###############################################################################
+
+mamba2:
+  d_model: 1024
+  d_state: 16
+  n_layers: 24            # 24 vs 32 (v6e) — HBM plus serré, moins de layers
+  n_heads: 16             # head_dim = 1024*2/16 = 128
+  expand_factor: 2        # d_inner = 2048
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: false         # 200M → activations 24 layers @ 128/chip ≈ 1.5 GB → fits 16 GB
+
+predictor:
+  hidden_dim: 2048
+  n_layers: 2
+  dropout: 0.05
+  z_dim: 64
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 12
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.997
+  tau_end: 1.0
+  anneal_epochs: 150
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 1.5e-4
+  weight_decay: 0.02
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 8192        # 128/chip × 64 chips — réduit vs v6e (16384)
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 200
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.15
+  num_workers: 0
+  prefetch_buffer_size: 128

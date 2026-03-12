@@ -1,0 +1,79 @@
+###############################################################################
+# v5e-L — ~1B params — Scale-up (HBM-tight)
+#
+# Target: v5e-64 (64 chips, 16 GB HBM each = 1024 GB total)
+# Zone: europe-west4-b (même région que GCS → egress gratuit)
+# Auto-Sharder: Mesh 2D (data=8, fsdp=8)
+# MXU alignment: head_dim = 2048*2/32 = 128 (1 tile MXU parfait)
+#
+# HBM budget 16 GB/chip (SERRÉ) :
+#   Params FSDP-8: 1B × 2B / 8 = 250 MB/chip
+#   Opt state: ~750 MB/chip (Adam μ + ν)
+#   Activations SANS remat: 64/chip × 128 × 4096 × 2B × 24 layers ≈ 1.5 GB
+#   Activations AVEC remat: ~130 MB/chip
+#   Total avec remat: ~1.1 GB/chip → confortable dans 16 GB
+#
+# use_remat=true OBLIGATOIRE — sans remat, les gradients + activations
+# pourraient approcher la limite HBM aux batches élevés
+###############################################################################
+
+mamba2:
+  d_model: 2048
+  d_state: 16
+  n_layers: 24
+  n_heads: 32             # head_dim = 2048*2/32 = 128
+  expand_factor: 2        # d_inner = 4096
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: true          # OBLIGATOIRE pour 16 GB HBM — activations trop grosses sans
+
+predictor:
+  hidden_dim: 4096
+  n_layers: 2
+  dropout: 0.05
+  z_dim: 64
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 16
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.998
+  tau_end: 1.0
+  anneal_epochs: 200
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 7.5e-5
+  weight_decay: 0.05
+  max_epochs: 100
+  warmup_epochs: 15
+  batch_size: 4096        # 64/chip × 64 chips — réduit vs v6e (8192) pour HBM
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 100
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.1
+  num_workers: 0
+  prefetch_buffer_size: 128

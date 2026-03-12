@@ -1,0 +1,58 @@
+mamba2:
+  d_model: 512
+  d_state: 16
+  n_layers: 20
+  n_heads: 8
+  expand_factor: 2
+  conv_kernel: 4
+  encoder_type: mamba
+  exo_clock: true
+  exo_clock_dim: 4
+  gnn_dim: 0
+  macro_dim: 48
+  chunk_size: 128
+  use_remat: false
+  remat_policy: full
+  use_macro_cross_attn: true
+predictor:
+  hidden_dim: 1024
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+vicreg:
+  inv_weight: 25.0
+  var_weight: 100.0
+  cov_weight: 10.0
+  var_gamma: 1.0
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+training:
+  lr: 0.0002
+  weight_decay: 0.02
+  max_epochs: 12
+  warmup_epochs: 1
+  batch_size: 4096
+  precision: bf16
+  grad_clip: 10.0
+  n_restarts: 3
+  checkpoint_interval: 2000
+data:
+  token_dir: data/tokens_combined/
+  arrayrecord_dir: data/arrayrecord_combined/
+  val_split: 0.1
+  num_workers: 4
+  prefetch_buffer_size: 64

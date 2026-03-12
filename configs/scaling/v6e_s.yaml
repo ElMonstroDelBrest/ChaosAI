@@ -1,0 +1,72 @@
+###############################################################################
+# v6e-S — ~50M params — Quick test / validation run
+#
+# Target: v6e-64 (64 chips, 32 GB HBM each = 2048 GB total)
+# Auto-Sharder: Mesh 2D Tore 8×8 (data=8, fsdp=8)
+# MXU alignment: head_dim = 512*2/8 = 128 (1 tile MXU parfait)
+#
+# Chinchilla: 50M params × 20 = 1B tokens optimal
+# Batch effectif: 64/chip × 64 chips = 4096
+# HBM/chip: ~100 MB params bf16 + ~200 MB activations → très confortable (32 GB)
+###############################################################################
+
+mamba2:
+  d_model: 512           # 4 blocs MXU (512/128)
+  d_state: 16
+  n_layers: 16
+  n_heads: 8             # head_dim = 512*2/8 = 128 (1 MXU tile parfait)
+  expand_factor: 2       # d_inner = 1024 (8 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: false        # 50M → ~100 MB bf16, pas besoin de remat sur 32 GB HBM
+
+predictor:
+  hidden_dim: 1024        # 2× d_model
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0         # Désactivé pour test rapide
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 3.0e-4              # Plus agressif pour petit modèle
+  weight_decay: 0.01
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 4096        # 64/chip × 64 chips
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 250
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.2
+  num_workers: 0
+  prefetch_buffer_size: 128

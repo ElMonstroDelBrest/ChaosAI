@@ -1,0 +1,74 @@
+###############################################################################
+# v6e-M — ~300M params — Run principal
+#
+# Target: v6e-64 (64 chips, 32 GB HBM each = 2048 GB total)
+# Auto-Sharder: Mesh 2D Tore 8×8 (data=8, fsdp=8)
+# MXU alignment: head_dim = 1024*2/16 = 128 (1 tile MXU parfait)
+#
+# Chinchilla: 300M × 20 = 6B tokens optimal
+# Batch effectif: 256/chip × 64 chips = 16384
+# HBM/chip: ~600 MB params bf16 + ~1.2 GB activations → confortable (32 GB)
+# MXU utilisation: d_inner=2048 (16 tiles 128×128) — max throughput
+# FSDP-8: 300M params = 600 MB bf16 → 75 MB/chip params après FSDP-8
+###############################################################################
+
+mamba2:
+  d_model: 1024          # 8 blocs MXU (1024/128)
+  d_state: 16
+  n_layers: 32
+  n_heads: 16            # head_dim = 1024*2/16 = 128 (1 MXU tile parfait)
+  expand_factor: 2       # d_inner = 2048 (16 blocs MXU — throughput max)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: false        # 300 MB bf16 params, ~1 GB activations/chip → < 32 GB
+
+predictor:
+  hidden_dim: 2048        # 2× d_model
+  n_layers: 2
+  dropout: 0.05
+  z_dim: 64
+  cfm_weight: 1.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 12
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.997
+  tau_end: 1.0
+  anneal_epochs: 150
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 1.5e-4              # μP: lr ∝ 1/sqrt(d_model) vs S
+  weight_decay: 0.02
+  max_epochs: 100
+  warmup_epochs: 10
+  batch_size: 16384       # 256/chip × 64 chips
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 4
+  checkpoint_interval: 200
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.15
+  num_workers: 0
+  prefetch_buffer_size: 192

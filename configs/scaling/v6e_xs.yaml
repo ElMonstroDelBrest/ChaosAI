@@ -1,0 +1,78 @@
+###############################################################################
+# v6e-XS — ~3M params — Chinchilla-adapted to 19M tokens (432 pairs × 1h)
+#
+# Target: v6e-8 to v6e-64 (auto-scale batch)
+# Auto-Sharder: Mesh 2D auto-detect
+# MXU alignment: head_dim = 256*2/4 = 128 (1 tile MXU parfait)
+#
+# Chinchilla optimal: 19M tokens / 20 ≈ 1M params
+# 3M params = légèrement over-param → regularisation agressive (dropout, wd)
+#
+# Param estimate:
+#   Mamba-2 (8 layers): ~2.3M
+#   Embedding + Predictor: ~0.7M
+#   Total: ~3M
+#
+# HBM/chip: ~6 MB params bf16 → trivial sur n'importe quel TPU
+###############################################################################
+
+mamba2:
+  d_model: 256           # 2 blocs MXU (256/128)
+  d_state: 16
+  n_layers: 8
+  n_heads: 4             # head_dim = 256*2/4 = 128 (1 MXU tile)
+  expand_factor: 2       # d_inner = 512 (4 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  use_remat: false        # 3M → ~6 MB bf16, trivial
+
+predictor:
+  hidden_dim: 512         # 2× d_model
+  n_layers: 2
+  dropout: 0.15           # agressif — over-param pour les données
+  z_dim: 32
+  cfm_weight: 0.0         # desactive pour XS
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 128
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 5.0e-4              # plus agressif pour petit modele
+  weight_decay: 0.05       # forte regularisation
+  max_epochs: 300          # plus d'epochs — 19M tokens = ~36 steps/epoch @ 64 chips
+  warmup_epochs: 20
+  batch_size: 4096         # 64/chip × 64 chips (auto-scale si moins de chips)
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 6
+  checkpoint_interval: 500
+
+data:
+  token_dir: "data/tokens_v5/"
+  arrayrecord_dir: "data/arrayrecord/"
+  val_split: 0.2
+  num_workers: 0
+  prefetch_buffer_size: 128
