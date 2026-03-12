@@ -25,6 +25,8 @@ class Mamba2Config:
     macro_dim: int = 0            # Macro context dim (0 = disabled, 48 = FRED+COT top-k)
     chunk_size: int = 128  # SSD chunk size — 128 fills one MXU tile exactly
     use_remat: bool = False  # True for v6e (31 GB HBM), False for v5p (95 GB)
+    remat_policy: str = "full"          # "full" = remat everything, "dots" = save dot products
+    use_macro_cross_attn: bool = False  # True = cross-attn macro → prefix token; False = legacy gated
 
 
 @dataclass(frozen=True)
@@ -52,12 +54,13 @@ class VICRegConfig:
     var_weight: float = 25.0
     cov_weight: float = 1.0
     var_gamma: float = 1.0
+    expander_dim: int = 0  # 0 = disabled; >0 = Barlow Twins in expander space
 
 
 @dataclass(frozen=True)
 class EMAConfig:
     tau_start: float = 0.996
-    tau_end: float = 1.0
+    tau_end: float = 0.999
     anneal_epochs: int = 100
 
 
@@ -129,6 +132,7 @@ class StrateIVJAXConfig:
     # CQL regularization (offline RL)
     cql_alpha: float = 1.0
     cql_n_random: int = 10
+    bifurcation_cql_scale: float = 2.0  # multiplier: effective_alpha = cql_alpha * (1 + scale * bif_idx)
 
     # Planning (MPPI)
     use_planning: bool = True
@@ -150,6 +154,60 @@ class StrateIVJAXConfig:
 
 
 @dataclass(frozen=True)
+class AllWeatherConfig:
+    """Offline DQN All-Weather agent config (Strate IV discrete)."""
+    episode_len: int = 64
+    fee_rate: float = 0.0008
+    risk_lambda: float = 0.5
+    hidden_dim: int = 512       # MXU aligned (512 / 4 heads = 128)
+    n_quantiles: int = 32
+    cvar_alpha: float = 0.25
+    lr: float = 3e-4
+    gamma: float = 0.99
+    ema_tau: float = 0.005
+    eps_start: float = 1.0
+    eps_end: float = 0.01
+    eps_decay_steps: int = 30000
+    buffer_capacity: int = 500_000
+    batch_size: int = 256
+    total_steps: int = 50_000
+    eval_freq: int = 1000
+
+
+@dataclass(frozen=True)
+class CrossSectionalConfig:
+    """Cross-sectional market-neutral DQN config.
+
+    Long top-k%, Short bottom-k%, rest Flat.
+    Same Q-network as AllWeather — scores K assets in batch,
+    then ranks → allocation. Market-neutral by construction.
+    """
+    k_assets: int = 16           # assets per portfolio
+    long_frac: float = 0.2       # top 20% → Long
+    short_frac: float = 0.2      # bottom 20% → Short
+    n_portfolios: int = 64       # N parallel portfolios (vmap)
+    episode_len: int = 64
+    fee_rate: float = 0.0008
+    risk_lambda: float = 0.5
+    hidden_dim: int = 512        # MXU aligned
+    n_quantiles: int = 32
+    cvar_alpha: float = 0.25
+    lr: float = 3e-4
+    gamma: float = 0.99
+    ema_tau: float = 0.005
+    buffer_capacity: int = 1_000_000
+    batch_size: int = 256
+    total_steps: int = 1_000_000
+    eval_freq: int = 100_000
+    n_eval: int = 100
+    slippage_factor: float = 0.001   # quadratic slippage coefficient
+    soft_alloc: bool = True          # score-weighted (False = hard ranking)
+    risk_parity: bool = False    # True = normalize rewards by vol proxy before z-scoring
+    use_per: bool = False        # True = priority experience replay weighted by bifurcation_index
+    per_alpha: float = 0.6       # PER exponent: priority = (bif_idx + eps)^per_alpha
+
+
+@dataclass(frozen=True)
 class StrateIIConfig:
     mamba2: Mamba2Config = field(default_factory=Mamba2Config)
     predictor: PredictorConfig = field(default_factory=PredictorConfig)
@@ -160,6 +218,8 @@ class StrateIIConfig:
     training: TrainingConfig = field(default_factory=TrainingConfig)
     data: DataConfig = field(default_factory=DataConfig)
     strate_iv: StrateIVJAXConfig | None = None
+    allweather: AllWeatherConfig | None = None
+    cross_sectional: CrossSectionalConfig | None = None
 
 
 def load_config(path: str) -> StrateIIConfig:
@@ -173,6 +233,10 @@ def load_config(path: str) -> StrateIIConfig:
             forward_references={
                 "StrateIVJAXConfig": StrateIVJAXConfig,
                 "StrateIVJAXConfig | None": StrateIVJAXConfig | None,
+                "AllWeatherConfig": AllWeatherConfig,
+                "AllWeatherConfig | None": AllWeatherConfig | None,
+                "CrossSectionalConfig": CrossSectionalConfig,
+                "CrossSectionalConfig | None": CrossSectionalConfig | None,
             },
         ),
     )
