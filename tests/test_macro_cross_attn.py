@@ -30,3 +30,19 @@ def test_config_has_use_macro_cross_attn():
     cfg = Mamba2Config()
     assert hasattr(cfg, "use_macro_cross_attn")
     assert cfg.use_macro_cross_attn is False
+
+
+def test_mamba2_encoder_remat_policy_branch():
+    """mamba2_encoder.py must use remat_policy for policy selection."""
+    src = pathlib.Path("src/jax_v6/encoders/mamba2_encoder.py").read_text()
+    assert "remat_policy" in src, "Missing remat_policy branch in encoder"
+    assert "checkpoint_dots_with_no_batch_dims" in src, "Missing dots policy"
+    assert "policy=_policy" in src or "policy=None" in src, "Missing policy= kwarg to nn.remat"
+
+
+def test_config_has_remat_policy():
+    """Mamba2Config must have remat_policy defaulting to 'full'."""
+    from src.jax_v6.config import Mamba2Config
+    cfg = Mamba2Config()
+    assert hasattr(cfg, "remat_policy")
+    assert cfg.remat_policy == "full"

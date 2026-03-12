@@ -42,6 +42,7 @@ class FinJEPA(nn.Module):
     seq_len: int = 128
     chunk_size: int = 128
     use_remat: bool = False
+    remat_policy: str = "full"
     gnn_dim: int = 0
     macro_dim: int = 0
     use_macro_cross_attn: bool = False
@@ -79,6 +80,7 @@ class FinJEPA(nn.Module):
             seq_len=config.embedding.seq_len,
             chunk_size=config.mamba2.chunk_size,
             use_remat=config.mamba2.use_remat,
+            remat_policy=config.mamba2.remat_policy,
             gnn_dim=config.mamba2.gnn_dim,
             macro_dim=config.mamba2.macro_dim,
             use_macro_cross_attn=config.mamba2.use_macro_cross_attn,
@@ -109,6 +111,7 @@ class FinJEPA(nn.Module):
             seq_len=self.seq_len,
             chunk_size=self.chunk_size,
             use_remat=self.use_remat,
+            remat_policy=self.remat_policy,
             gnn_dim=self.gnn_dim,
             macro_dim=self.macro_dim,
             use_macro_cross_attn=self.use_macro_cross_attn,

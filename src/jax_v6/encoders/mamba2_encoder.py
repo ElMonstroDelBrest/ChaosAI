@@ -34,6 +34,7 @@ class Mamba2Encoder(nn.Module):
     seq_len: int = 128
     chunk_size: int = 128
     use_remat: bool = False
+    remat_policy: str = "full"    # "full" = recompute everything; "dots" = save matmul outputs
     gnn_dim: int = 0              # GNN on-chain embedding dim (0 = disabled)
     macro_dim: int = 0             # Macro context dim (0 = disabled)
     use_macro_cross_attn: bool = False  # True = cross-attn macro → prefix token; False = legacy gated
@@ -184,7 +185,18 @@ class Mamba2Encoder(nn.Module):
         # nn.remat: recompute each layer during backward instead of
         # storing all SSD intermediates (saves ~6× activation memory).
         # Disabled on v5p-8 (95 GB HBM) for ~2× speedup.
-        BlockCls = nn.remat(Mamba2Block) if self.use_remat else Mamba2Block
+        # remat_policy:
+        #   "full"  — recompute everything (most memory-efficient, default)
+        #   "dots"  — save matmul outputs, recompute elementwise ops
+        #             (better memory/compute tradeoff at 1B+ params)
+        if self.use_remat:
+            if self.remat_policy == "dots":
+                _policy = jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims
+            else:  # "full" — recompute everything (default, most memory-efficient)
+                _policy = None
+            BlockCls = nn.remat(Mamba2Block, policy=_policy)
+        else:
+            BlockCls = Mamba2Block
         for i in range(self.n_layers):
             x = BlockCls(
                 d_model=self.d_model,
