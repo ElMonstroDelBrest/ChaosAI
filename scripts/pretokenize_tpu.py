@@ -34,6 +34,27 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("pretok_tpu")
 
 
+# Resolution scale IDs for scale-aware JEPA (Option B)
+SCALE_ID_MAP = {
+    # 1-minute data
+    'futures_1m_parquet': 0, 'spot_1m_parquet': 0,
+    '1m_parquet': 0, 'ohlcv_1m': 0, 'arrayrecord_1m': 0,
+    # Hourly data
+    'ohlcv_stocks_1h': 1,
+    # Daily data
+    'futures': 2, 'spot': 2,
+    'ohlcv_stocks_daily': 2, 'ohlcv_sp500': 2,
+    'ohlcv_forex': 2, 'ohlcv_commodities': 2,
+    'yfinance_parquet': 2, 'sp500': 2, 'stocks': 2,
+}
+
+def get_scale_id(source_path: str) -> int:
+    """Determine resolution scale_id from source directory/file path."""
+    from pathlib import Path
+    dir_name = Path(source_path).parent.name
+    return SCALE_ID_MAP.get(dir_name, 0)  # default 0 = 1min
+
+
 # ── Phase 1: Parallel CPU I/O + log_returns ──────────────────────────────────
 
 def _load_and_transform(args):
@@ -241,6 +262,10 @@ def _write_shard(args):
     shard_path = os.path.join(output_dir, f"{pair_name}.arrayrecord")
     writer = ArrayRecordWriter(shard_path, "group_size:1")
 
+    # Derive scale_id from the dir_tag embedded in shard name ("{dir_tag}__{asset}")
+    dir_tag = pair_name.split("__")[0] if "__" in pair_name else pair_name
+    scale_id = SCALE_ID_MAP.get(dir_tag, 0)
+
     for i in range(n_seqs):
         feature = {
             "token_indices": tf.train.Feature(
@@ -257,6 +282,8 @@ def _write_shard(args):
                 int64_list=tf.train.Int64List(value=[seq_len])),
             "source_id": tf.train.Feature(
                 int64_list=tf.train.Int64List(value=[source_id])),
+            "scale_id": tf.train.Feature(
+                int64_list=tf.train.Int64List(value=[scale_id])),
         }
         example = tf.train.Example(features=tf.train.Features(feature=feature))
         writer.write(example.SerializeToString())
