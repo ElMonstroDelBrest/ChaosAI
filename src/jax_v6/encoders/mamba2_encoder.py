@@ -38,6 +38,7 @@ class Mamba2Encoder(nn.Module):
     gnn_dim: int = 0              # GNN on-chain embedding dim (0 = disabled)
     macro_dim: int = 0             # Macro context dim (0 = disabled)
     use_macro_cross_attn: bool = False  # True = cross-attn macro → prefix token; False = legacy gated
+    scale_emb_dim: int = 0             # scale_id embedding dim (0 = disabled)
 
     @staticmethod
     def _sinusoidal_embed(seq_len: int, d_model: int) -> Array:
@@ -86,6 +87,7 @@ class Mamba2Encoder(nn.Module):
         gnn_embeddings: Array | None = None,
         gnn_mask: Array | None = None,
         macro_context: Array | None = None,
+        scale_id: Array | None = None,
     ) -> Array:
         """Encode a sequence of token indices.
 
@@ -180,6 +182,24 @@ class Mamba2Encoder(nn.Module):
                     bias_init=nn.initializers.constant(-2.0),
                 )(macro_context))                                            # (B, S, 1)
                 x = x + macro_gate * macro_proj
+
+        # Option B: scale_id embedding → concatenate to exo_clock
+        if self.scale_emb_dim > 0 and scale_id is not None:
+            scale_emb_table = nn.Embed(
+                num_embeddings=4,
+                features=self.scale_emb_dim,
+                embedding_init=nn.initializers.normal(stddev=0.02),
+                name="scale_embed",
+            )
+            se = scale_emb_table(scale_id.reshape(-1))           # (B,) guaranteed → (B, scale_emb_dim)
+            se = jnp.broadcast_to(
+                se[:, None, :], (B, S, self.scale_emb_dim)
+            )                                                     # (B, S, scale_emb_dim)
+            if exo_clock is not None:
+                exo_clock = jnp.concatenate([exo_clock, se], axis=-1)
+            else:
+                exo_clock = se
+                vol_clock = None  # scale embedding now handles clock; suppress vol_clock fallback
 
         # Pass through Mamba-2 stack with clock conditioning
         # nn.remat: recompute each layer during backward instead of
