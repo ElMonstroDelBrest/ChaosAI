@@ -1,11 +1,15 @@
 """Standalone training script for TPU — launched by launch_tpu_*.sh or directly."""
-import sys, os, logging, time
+import sys, os, logging, time, gc
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
 log = logging.getLogger("train")
+
+# Disable Python GC during training — avoid random 10-50ms pauses
+# GC is re-enabled at checkpoints to prevent memory leaks
+gc.disable()
 
 import jax
 import jax.numpy as jnp
@@ -18,7 +22,7 @@ from src.jax_v6.training.train_step import train_step, eval_step
 from src.jax_v6.training.preemption import PreemptionWatcher
 from src.jax_v6.training.metrics import compute_mfu, compute_tokens_per_second
 from src.jax_v6.jepa import FinJEPA
-from src.jax_v6.data.grain_loader import create_dataloader, count_train_records
+from src.jax_v6.data.grain_loader import create_dataloader, count_train_records, InMemoryLoader
 
 # ── Config ──
 config = load_config(os.environ["SCALE_CONFIG"])
@@ -71,6 +75,7 @@ dummy_batch = {
     "token_indices": jnp.zeros((B, S), dtype=jnp.int32),
     "weekend_mask": jnp.zeros((B, S), dtype=jnp.float32),
     "exo_clock": jnp.zeros((B, S, exo_dim), dtype=jnp.float32),
+    "scale_id": jnp.zeros((B,), dtype=jnp.int32),
     "block_mask": jnp.zeros((B, S), dtype=jnp.bool_),
     "target_positions": jnp.zeros((B, max_tgt), dtype=jnp.int32),
     "target_mask": jnp.ones((B, max_tgt), dtype=jnp.bool_),
@@ -116,16 +121,34 @@ if resume:
         log.info("Resumed from step %d", start_step)
 
 # ── Data ──
-train_loader = create_dataloader(
-    config.data.arrayrecord_dir, split="train",
-    batch_size=config.training.batch_size,
-    seq_len=config.embedding.seq_len,
-    val_ratio=config.data.val_split,
-    worker_count=config.data.num_workers,
-    prefetch_buffer_size=config.data.prefetch_buffer_size,
-    gnn_dim=config.mamba2.gnn_dim,
-    exo_clock_dim=config.mamba2.exo_clock_dim,
-)
+# InMemoryLoader: preload all records with 128 threads, serve from RAM.
+# 6M records × ~1.5 KB = ~9 GB RAM (out of 1.4 TB available on TPU VM).
+# Eliminates CPU data loading bottleneck — batches served in <1ms.
+use_inmemory = os.environ.get("USE_INMEMORY_LOADER", "true") == "true"
+if use_inmemory:
+    n_cpu = os.cpu_count() or 8
+    n_threads = min(n_cpu, 128)
+    log.info("Using InMemoryLoader with %d threads (%d CPUs available)", n_threads, n_cpu)
+    train_loader = InMemoryLoader(
+        config.data.arrayrecord_dir, split="train",
+        batch_size=config.training.batch_size,
+        seq_len=config.embedding.seq_len,
+        val_ratio=config.data.val_split,
+        n_threads=n_threads,
+        gnn_dim=config.mamba2.gnn_dim,
+        exo_clock_dim=config.mamba2.exo_clock_dim,
+    )
+else:
+    train_loader = create_dataloader(
+        config.data.arrayrecord_dir, split="train",
+        batch_size=config.training.batch_size,
+        seq_len=config.embedding.seq_len,
+        val_ratio=config.data.val_split,
+        worker_count=config.data.num_workers,
+        prefetch_buffer_size=config.data.prefetch_buffer_size,
+        gnn_dim=config.mamba2.gnn_dim,
+        exo_clock_dim=config.mamba2.exo_clock_dim,
+    )
 
 # ── Macro context (optional) ──
 macro_ctx = None
@@ -146,8 +169,9 @@ watcher.start()
 ckpt_interval = config.training.checkpoint_interval
 # Disable checkpointing if orbax is incompatible (JAX 0.6.x + orbax 0.11.x)
 DISABLE_CKPT = os.environ.get("DISABLE_CKPT", "false") == "true"
-mfu_interval = 50
+mfu_interval = 100  # log every 100 steps (was 50 — halves Python overhead from logging)
 val_interval = 500
+rank_interval = 2000  # log effective rank every 2000 steps
 PEAK_TFLOPS = {"v6e": 918.0, "v5e": 197.0, "v5p": 459.0}.get(tpu_gen, 918.0)
 
 log.info("=== Training started (%s, scale=%s, step=%d, total=%d) ===",
@@ -156,7 +180,42 @@ step = start_step
 prev_epoch = start_step // steps_per_epoch if steps_per_epoch > 0 else 0
 t0 = time.time()
 
-for batch in train_loader:
+# ── Async prefetch with triple-buffer ──
+# Thread converts numpy→jax and shards while TPU computes previous step.
+# Triple-buffer (maxsize=3) ensures the TPU never stalls.
+import threading, queue
+
+_prefetch_q = queue.Queue(maxsize=3)  # triple-buffer
+_prefetch_stop = threading.Event()
+
+def _prefetch_worker():
+    """Background thread: numpy→jax array + shard, feeds TPU."""
+    try:
+        for raw_batch in train_loader:
+            if _prefetch_stop.is_set():
+                break
+            prepared = {k: jnp.array(v) for k, v in raw_batch.items()
+                        if not isinstance(v, (str, bytes))}
+            if macro_ctx is not None:
+                local_B = prepared["token_indices"].shape[0]
+                prepared["macro_context"] = jnp.array(
+                    macro_ctx.get_random_batch_context(local_B, config.embedding.seq_len))
+            prepared = shard_batch(prepared, mesh)
+            # Async device_put — starts transfer to TPU HBM immediately
+            prepared = jax.device_put(prepared)
+            _prefetch_q.put(prepared)
+    except Exception as e:
+        log.error("Prefetch error: %s", e)
+    _prefetch_q.put(None)  # sentinel
+
+_prefetch_thread = threading.Thread(target=_prefetch_worker, daemon=True)
+_prefetch_thread.start()
+log.info("Prefetch thread started (triple-buffer, async device_put)")
+
+while True:
+    batch = _prefetch_q.get()
+    if batch is None:
+        break
     if watcher.should_stop():
         log.warning("PREEMPTION at step %d — saving...", step)
         ckpt_mgr.save(step, args=ocp.args.StandardSave(state))
@@ -166,14 +225,7 @@ for batch in train_loader:
             f"{gcs_bucket}/checkpoints/jax_{tpu_gen}/{scale}/"], check=False)
         break
 
-    batch = {k: jnp.array(v) for k, v in batch.items() if not isinstance(v, (str, bytes))}
-    # Inject macro context (global signals, not per-record)
-    if macro_ctx is not None:
-        local_B = batch["token_indices"].shape[0]
-        batch["macro_context"] = jnp.array(
-            macro_ctx.get_random_batch_context(local_B, config.embedding.seq_len)
-        )
-    batch = shard_batch(batch, mesh)
+    # Batch already prepared + sharded by prefetch thread
     state, metrics = train_step(state, batch, model)
 
     step += 1
@@ -204,14 +256,40 @@ for batch in train_loader:
         )
         t0 = time.time()
 
+    # ── Effective rank monitoring (detect representational collapse) ──
+    if step % rank_interval == 0 and step > 0:
+        try:
+            import numpy as _np
+            # Get encoder output embeddings from last batch
+            enc_params = state.params.get("encoder", state.params)
+            # Quick proxy: compute rank from the codebook embedding table
+            emb_table = None
+            for path, leaf in jax.tree.leaves_with_path(state.params):
+                pname = "/".join(str(p) for p in path)
+                if "embedding" in pname and leaf.ndim == 2 and leaf.shape[0] >= 256:
+                    emb_table = _np.array(leaf)
+                    break
+            if emb_table is not None:
+                _U, _S, _V = _np.linalg.svd(emb_table - emb_table.mean(0), full_matrices=False)
+                _S_norm = _S / (_S.sum() + 1e-10)
+                _entropy = -(_S_norm * _np.log(_S_norm + 1e-10)).sum()
+                _eff_rank = float(_np.exp(_entropy))
+                _top10 = float((_S[:10]**2).sum() / (_S**2).sum() * 100)
+                log.info("step %d | eff_rank=%.0f/%d (%.0f%%) | top10_energy=%.1f%%",
+                         step, _eff_rank, emb_table.shape[1], _eff_rank/emb_table.shape[1]*100, _top10)
+        except Exception as e:
+            log.debug("Rank check failed: %s", e)
+
     if not DISABLE_CKPT and step % ckpt_interval == 0:
         log.info("Checkpoint step %d...", step)
+        gc.enable(); gc.collect(); gc.disable()  # brief GC at checkpoint
         ckpt_mgr.save(step, args=ocp.args.StandardSave(state))
-        ckpt_mgr.wait_until_finished()
         import subprocess
         subprocess.Popen(["gsutil", "-m", "rsync", "-r", ckpt_dir + "/",
             f"{gcs_bucket}/checkpoints/jax_{tpu_gen}/{scale}/"])
 
+_prefetch_stop.set()
+_prefetch_thread.join(timeout=5)
 watcher.stop()
 
 if not DISABLE_CKPT:
