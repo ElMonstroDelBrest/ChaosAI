@@ -27,6 +27,9 @@ class Mamba2Config:
     use_remat: bool = False  # True for v6e (31 GB HBM), False for v5p (95 GB)
     remat_policy: str = "full"          # "full" = remat everything, "dots" = save dot products
     use_macro_cross_attn: bool = False  # True = cross-attn macro → prefix token; False = legacy gated
+    scale_emb_dim: int = 0        # 0 = disabled; 2 = 2-dim scale embedding (Option B)
+    cross_res_weight: float = 0.0  # 0 = disabled; >0 enables Option C loss
+    cross_res_R: int = 4           # temporal subsampling factor for Option C
 
 
 @dataclass(frozen=True)

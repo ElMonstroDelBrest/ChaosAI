@@ -1,0 +1,83 @@
+###############################################################################
+# v6e-daily-32M — Chinchilla-optimal for daily OHLCV (stocks + forex + ETFs)
+#
+# Target: v6e-8 (8 chips, 32 GB HBM each = 256 GB total)
+# Auto-Sharder: Mesh (8,1) DP pur
+# MXU alignment: head_dim = 512*2/8 = 128 (1 tile MXU parfait)
+#
+# Data: stocks daily + S&P 500 + forex + commodities + ETFs
+#       (~8,224 assets, seq_len=128, daily candles)
+# Chinchilla: ~32M params × 20 = ~640M tokens
+#
+# Param estimate (d=512, 16 layers):
+#   Mamba-2: 16 × ~1.6M ≈ 25.6M
+#   Embedding + Predictor + scale_emb: ~6M
+#   Total: ~32M
+#
+# New features (Option B + C):
+#   scale_emb_dim: 2   — 2-dim learned scale embedding injected at each layer
+#   cross_res_weight: 1.0 — Option C cross-resolution consistency loss
+#   cross_res_R: 4        — temporal subsampling factor (1h → 4h aggregation)
+###############################################################################
+
+mamba2:
+  d_model: 512
+  d_state: 16
+  n_layers: 16
+  n_heads: 8
+  expand_factor: 2
+  conv_kernel: 4
+  encoder_type: mamba
+  exo_clock: true
+  exo_clock_dim: 4
+  gnn_dim: 0
+  macro_dim: 48
+  chunk_size: 128
+  use_remat: false
+  remat_policy: full
+  use_macro_cross_attn: true
+  scale_emb_dim: 2
+  cross_res_weight: 1.0
+  cross_res_R: 4
+predictor:
+  hidden_dim: 1024
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+vicreg:
+  inv_weight: 25.0
+  var_weight: 100.0
+  cov_weight: 10.0
+  var_gamma: 1.0
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+training:
+  lr: 0.0002
+  weight_decay: 0.02
+  max_epochs: 10
+  warmup_epochs: 1
+  batch_size: 4096
+  precision: bf16
+  grad_clip: 10.0
+  n_restarts: 3
+  checkpoint_interval: 1000
+data:
+  token_dir: data/tokens_combined/
+  arrayrecord_dir: data/arrayrecord_combined/
+  val_split: 0.1
+  num_workers: 4
+  prefetch_buffer_size: 64
