@@ -21,7 +21,7 @@ from .config import StrateIIConfig
 from .encoders.mamba2_encoder import Mamba2Encoder
 from .predictors.predictor import Predictor
 from .predictors.flow_predictor import FlowPredictor
-from .losses.vicreg import invariance_loss, vicreg_loss, barlow_twins_loss
+from .losses.vicreg import invariance_loss, vicreg_loss, barlow_twins_loss, cross_resolution_loss
 
 
 class FinJEPA(nn.Module):
@@ -65,6 +65,11 @@ class FinJEPA(nn.Module):
     var_gamma: float = 1.0
     expander_dim: int = 0  # 0 = standard VICReg; >0 = Barlow Twins in expander space
 
+    # Option C: temporal scale-space consistency
+    scale_emb_dim: int = 0
+    cross_res_weight: float = 0.0
+    cross_res_R: int = 4
+
     @classmethod
     def from_config(cls, config: StrateIIConfig) -> "FinJEPA":
         """Construct FinJEPA from a StrateIIConfig dataclass."""
@@ -96,6 +101,9 @@ class FinJEPA(nn.Module):
             cov_weight=config.vicreg.cov_weight,
             var_gamma=config.vicreg.var_gamma,
             expander_dim=config.vicreg.expander_dim,
+            scale_emb_dim=config.mamba2.scale_emb_dim,
+            cross_res_weight=getattr(config.mamba2, 'cross_res_weight', 0.0),
+            cross_res_R=getattr(config.mamba2, 'cross_res_R', 4),
         )
 
     def setup(self):
@@ -115,6 +123,7 @@ class FinJEPA(nn.Module):
             gnn_dim=self.gnn_dim,
             macro_dim=self.macro_dim,
             use_macro_cross_attn=self.use_macro_cross_attn,
+            scale_emb_dim=self.scale_emb_dim,
             name="context_encoder",
         )
 
@@ -177,6 +186,7 @@ class FinJEPA(nn.Module):
         gnn_embeddings = batch.get("gnn_embeddings")
         gnn_mask = batch.get("gnn_mask")
         macro_context = batch.get("macro_context")
+        scale_id = batch.get("scale_id")  # (B,) int32 or None
         target_positions = batch["target_positions"]
         target_mask = batch["target_mask"]
 
@@ -192,7 +202,14 @@ class FinJEPA(nn.Module):
             gnn_embeddings=gnn_embeddings,
             gnn_mask=gnn_mask,
             macro_context=macro_context,
+            scale_id=scale_id,
         )  # (B, S, d_model)
+
+        # Option C: temporal scale-space consistency loss
+        cross_res_loss = jnp.float32(0.0)
+        if self.cross_res_weight > 0.0:
+            cr = cross_resolution_loss(h_x, R=self.cross_res_R)
+            cross_res_loss = cr["total"]
 
         # 2. Target encoder: same architecture, EMA weights, NO masking
         # Apply context_encoder with target_params (extract encoder subset)
@@ -211,6 +228,7 @@ class FinJEPA(nn.Module):
                     gnn_embeddings=gnn_embeddings,
                     gnn_mask=gnn_mask,
                     macro_context=macro_context,
+                    scale_id=scale_id,
                 )
             )
         else:
@@ -224,6 +242,7 @@ class FinJEPA(nn.Module):
                     gnn_embeddings=gnn_embeddings,
                     gnn_mask=gnn_mask,
                     macro_context=macro_context,
+                    scale_id=scale_id,
                 )
             )  # (B, S, d_model)
 
@@ -289,12 +308,15 @@ class FinJEPA(nn.Module):
             cfm_loss = jnp.sum(mask_3d * (v_pred - v_tgt) ** 2) / (n_valid * D)
             total_loss = total_loss + self.cfm_weight * cfm_loss
 
+        total_loss = total_loss + self.cross_res_weight * cross_res_loss
+
         return {
             "loss": total_loss,
             "invariance": loss_dict["invariance"],
             "variance": loss_dict["variance"],
             "covariance": loss_dict["covariance"],
             "cfm_loss": cfm_loss,
+            "cross_res_loss": cross_res_loss,
             "mask_ratio": jnp.mean(block_mask.astype(jnp.float32)) if block_mask is not None else jnp.float32(0.0),
             "n_targets": jnp.sum(target_mask.astype(jnp.float32)) / B,
         }

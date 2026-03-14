@@ -42,17 +42,13 @@ SCALE_ID_MAP = {
     # Hourly data
     'ohlcv_stocks_1h': 1,
     # Daily data
-    'futures': 2, 'spot': 2,
     'ohlcv_stocks_daily': 2, 'ohlcv_sp500': 2,
     'ohlcv_forex': 2, 'ohlcv_commodities': 2,
     'yfinance_parquet': 2, 'sp500': 2, 'stocks': 2,
+    # Note: bare 'futures'/'spot' dir names are intentionally omitted
+    # (ambiguous: could be daily OR 1min). Use full names like
+    # 'futures_1m_parquet' or 'ohlcv_crypto_daily' for explicit mapping.
 }
-
-def get_scale_id(source_path: str) -> int:
-    """Determine resolution scale_id from source directory/file path."""
-    from pathlib import Path
-    dir_name = Path(source_path).parent.name
-    return SCALE_ID_MAP.get(dir_name, 0)  # default 0 = 1min
 
 
 # ── Phase 1: Parallel CPU I/O + log_returns ──────────────────────────────────
