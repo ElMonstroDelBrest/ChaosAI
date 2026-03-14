@@ -34,6 +34,21 @@ import numpy as np
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("precompute_rl")
 
+# Resolution scale IDs — must match pretokenize_tpu.py
+_SCALE_ID_MAP = {
+    'futures_1m_parquet': 0, 'spot_1m_parquet': 0,
+    '1m_parquet': 0, 'ohlcv_1m': 0, 'arrayrecord_1m': 0,
+    'ohlcv_stocks_1h': 1,
+    'ohlcv_stocks_daily': 2, 'ohlcv_sp500': 2,
+    'ohlcv_forex': 2, 'ohlcv_commodities': 2,
+    'yfinance_parquet': 2, 'sp500': 2, 'stocks': 2,
+}
+
+
+def _get_scale_id(dir_name: str) -> int:
+    """Get scale_id from directory name."""
+    return _SCALE_ID_MAP.get(dir_name, 0)
+
 
 # ── Phase 0: Load raw OHLCV + compute close returns (BEFORE JAX init) ──────
 
@@ -301,20 +316,21 @@ def main():
 
     # JIT context encoder (macro_context=None is safe: encoder checks None)
     # Use lambda method — submodules from setup() aren't accessible outside apply()
-    def _encode_fn(self, token_indices, weekend_mask, exo_clock):
+    def _encode_fn(self, token_indices, weekend_mask, exo_clock, scale_id):
         h_x = self.context_encoder(
             token_indices,
             weekend_mask=weekend_mask,
             block_mask=None,
             exo_clock=exo_clock,
+            scale_id=scale_id,
         )
         return h_x[:, -1, :]  # (B, d_model)
 
     @jax.jit
-    def encode_batch(params, token_indices, weekend_mask, exo_clock):
+    def encode_batch(params, token_indices, weekend_mask, exo_clock, scale_id):
         return model.apply(
             {"params": params},
-            token_indices, weekend_mask, exo_clock,
+            token_indices, weekend_mask, exo_clock, scale_id,
             method=_encode_fn,
         )
 
@@ -327,18 +343,24 @@ def main():
     all_exo = []
     all_weekend = []
     all_pairs = []
+    all_scale_ids = []
 
     for pair_name, examples in sorted(asset_data.items()):
+        # Determine scale_id from dir_tag (first part of pair_name before __)
+        dir_tag = pair_name.split("__")[0] if "__" in pair_name else ""
+        scale_id_val = _get_scale_id(dir_tag)
         for ex in examples:
             all_tokens.append(ex["token_indices"])
             all_exo.append(ex["exo_clock"])
             all_weekend.append(ex["weekend_mask"])
             all_pairs.append(pair_name)
+            all_scale_ids.append(scale_id_val)
 
     N = len(all_tokens)
-    all_tokens_np = np.stack(all_tokens)     # (N, seq_len)
-    all_exo_np = np.stack(all_exo)           # (N, seq_len, exo_clock_dim)
-    all_weekend_np = np.stack(all_weekend)   # (N, seq_len)
+    all_tokens_np = np.stack(all_tokens)                              # (N, seq_len)
+    all_exo_np = np.stack(all_exo)                                    # (N, seq_len, exo_clock_dim)
+    all_weekend_np = np.stack(all_weekend)                            # (N, seq_len)
+    all_scale_ids_np = np.array(all_scale_ids, dtype=np.int32)        # (N,)
     del all_tokens, all_exo, all_weekend, asset_data  # free
     log.info("Total sequences: %d, tokens=%s, exo=%s", N, all_tokens_np.shape, all_exo_np.shape)
 
@@ -350,6 +372,7 @@ def main():
         jnp.array(all_tokens_np[:bs]),
         jnp.array(all_weekend_np[:bs]),
         jnp.array(all_exo_np[:bs]),
+        jnp.array(all_scale_ids_np[:bs]),
     )
     log.info("JIT done")
 
@@ -365,6 +388,7 @@ def main():
             jnp.array(all_tokens_np[start:end]),
             jnp.array(all_weekend_np[start:end]),
             jnp.array(all_exo_np[start:end]),
+            jnp.array(all_scale_ids_np[start:end]),
         )
         all_h_last.append(np.asarray(h_last))
         batch_count += 1
@@ -379,6 +403,7 @@ def main():
             N = end
             all_pairs = all_pairs[:N]
             all_exo_np = all_exo_np[:N]
+            all_scale_ids_np = all_scale_ids_np[:N]
             break
 
     all_h_last = np.concatenate(all_h_last)  # (N, d_model)
