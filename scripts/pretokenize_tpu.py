@@ -45,9 +45,8 @@ SCALE_ID_MAP = {
     'ohlcv_stocks_daily': 2, 'ohlcv_sp500': 2,
     'ohlcv_forex': 2, 'ohlcv_commodities': 2,
     'yfinance_parquet': 2, 'sp500': 2, 'stocks': 2,
-    # Note: bare 'futures'/'spot' dir names are intentionally omitted
-    # (ambiguous: could be daily OR 1min). Use full names like
-    # 'futures_1m_parquet' or 'ohlcv_crypto_daily' for explicit mapping.
+    # ohlcv_crypto_daily/futures and /spot — daily crypto (dir_tag distinct from futures_1m_parquet)
+    'futures': 2, 'spot': 2,
 }
 
 
@@ -216,10 +215,10 @@ def tokenize_batched_tpu(all_candles_np, params, tokenizer, batch_size=2_000_000
 
 # ── Phase 4: Compute apathy + z-score exo per asset (CPU vectorized) ────────
 
-def compute_per_asset_features(token_indices, exo_clocks, assets, seq_len):
+def compute_per_asset_features(token_indices, exo_clocks, assets, seq_len, raw_returns=None):
     """Split results by asset, z-score exo_clock per asset, compute apathy mask.
 
-    Returns list of (pair_name, ti, ec, am, source_id, n_seqs) ready for writing.
+    Returns list of (pair_name, ti, ec, am, ret, source_id, n_seqs) ready for writing.
     """
     results = []
     for pair_name, start, length, source_id, n_seqs, dir_tag in assets:
@@ -240,10 +239,18 @@ def compute_per_asset_features(token_indices, exo_clocks, assets, seq_len):
         apathy = (vols < threshold).astype(np.float32)
         am = apathy.reshape(n_seqs, seq_len)
 
+        # Per-timestep price log returns (col 0 of raw candles = open-to-open log return)
+        if raw_returns is not None:
+            ret_raw = raw_returns[start:start + length]  # (length,)
+            ret_raw = np.clip(ret_raw, -0.5, 0.5).astype(np.float32)
+            ret = ret_raw.reshape(n_seqs, seq_len)
+        else:
+            ret = np.zeros((n_seqs, seq_len), dtype=np.float32)
+
         # Unique shard name: dir_tag + pair_name (avoids cross-source collisions)
         unique_name = f"{dir_tag}__{pair_name}"
         results.append((unique_name, ti.astype(np.int64), ec.astype(np.float32),
-                        am, source_id, n_seqs))
+                        am, ret, source_id, n_seqs))
     return results
 
 
@@ -254,13 +261,18 @@ def _write_shard(args):
     import tensorflow as tf
     from array_record.python.array_record_module import ArrayRecordWriter
 
-    pair_name, ti, ec, am, source_id, n_seqs, output_dir, seq_len, exo_clock_dim = args
+    args_unpacked = args
+    pair_name, ti, ec, am, ret, source_id, n_seqs, output_dir, seq_len, exo_clock_dim = args_unpacked[:10]
+    explicit_scale_id = args_unpacked[10] if len(args_unpacked) > 10 else None
     shard_path = os.path.join(output_dir, f"{pair_name}.arrayrecord")
     writer = ArrayRecordWriter(shard_path, "group_size:1")
 
-    # Derive scale_id from the dir_tag embedded in shard name ("{dir_tag}__{asset}")
-    dir_tag = pair_name.split("__")[0] if "__" in pair_name else pair_name
-    scale_id = SCALE_ID_MAP.get(dir_tag, 0)
+    # Derive scale_id: use explicit override if provided, else SCALE_ID_MAP fallback
+    if explicit_scale_id is not None:
+        scale_id = int(explicit_scale_id)
+    else:
+        dir_tag = pair_name.split("__")[0] if "__" in pair_name else pair_name
+        scale_id = SCALE_ID_MAP.get(dir_tag, 0)
 
     for i in range(n_seqs):
         feature = {
@@ -280,6 +292,8 @@ def _write_shard(args):
                 int64_list=tf.train.Int64List(value=[source_id])),
             "scale_id": tf.train.Feature(
                 int64_list=tf.train.Int64List(value=[scale_id])),
+            "returns": tf.train.Feature(
+                float_list=tf.train.FloatList(value=ret[i].tolist())),
         }
         example = tf.train.Example(features=tf.train.Features(feature=feature))
         writer.write(example.SerializeToString())
@@ -287,13 +301,13 @@ def _write_shard(args):
     return {"pair": pair_name, "path": shard_path, "count": n_seqs, "source_id": int(source_id)}
 
 
-def write_arrayrecords(tokenized_data, output_dir, seq_len, exo_clock_dim=2, workers=64):
+def write_arrayrecords(tokenized_data, output_dir, seq_len, exo_clock_dim=2, workers=64, source_id_to_scale=None):
     """Write all shards in parallel using spawn context (fork-safe after JAX init)."""
     os.makedirs(output_dir, exist_ok=True)
-    tasks = [
-        (name, ti, ec, am, sid, ns, output_dir, seq_len, exo_clock_dim)
-        for name, ti, ec, am, sid, ns in tokenized_data
-    ]
+    tasks = []
+    for name, ti, ec, am, ret, sid, ns in tokenized_data:
+        explicit = source_id_to_scale.get(int(sid)) if source_id_to_scale else None
+        tasks.append((name, ti, ec, am, ret, sid, ns, output_dir, seq_len, exo_clock_dim, explicit))
     log.info("Writing %d shards with %d workers (spawn)...", len(tasks), workers)
     t0 = time.time()
     shards = []
@@ -313,6 +327,9 @@ def main():
     parser = argparse.ArgumentParser(description="TPU-native multi-source pretokenizer")
     parser.add_argument("--source_dirs", nargs="+", required=True)
     parser.add_argument("--source_ids", nargs="+", type=int, default=None)
+    parser.add_argument("--source_scales", nargs="+", type=int, default=None,
+                        help="Explicit scale_id per source dir (0=1min, 1=hourly, 2=daily). "
+                             "Overrides SCALE_ID_MAP lookup. Must match len(source_dirs).")
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--output_dir", type=str, default="data/arrayrecord_multi/")
     parser.add_argument("--seq_len", type=int, default=128)
@@ -322,6 +339,13 @@ def main():
                         help="Candles per TPU forward pass (default 2M)")
     args = parser.parse_args()
     source_ids = args.source_ids or list(range(len(args.source_dirs)))
+    source_id_to_scale = None
+    if args.source_scales:
+        assert len(args.source_scales) == len(args.source_dirs), (
+            f"--source_scales ({len(args.source_scales)}) must match "
+            f"--source_dirs ({len(args.source_dirs)})")
+        source_id_to_scale = dict(zip(source_ids, args.source_scales))
+        log.info("Explicit scale_id map: %s", source_id_to_scale)
     t_total = time.time()
 
     # ── Phase 1: Load + log_returns (CPU parallel) ──
@@ -385,15 +409,18 @@ def main():
     token_indices, exo_clocks = tokenize_batched_tpu(
         all_candles, params, tokenizer, batch_size=args.tpu_batch,
     )
+    # Preserve price log returns (col 0) before freeing giant array
+    raw_returns = all_candles[:, 0].copy()
     del all_candles  # free
 
     # ── Phase 4: Per-asset features (CPU) ──
     log.info("Computing per-asset features...")
-    tokenized = compute_per_asset_features(token_indices, exo_clocks, assets, args.seq_len)
-    del token_indices, exo_clocks
+    tokenized = compute_per_asset_features(token_indices, exo_clocks, assets, args.seq_len,
+                                           raw_returns=raw_returns)
+    del token_indices, exo_clocks, raw_returns
 
     # ── Phase 5: Write ArrayRecords (CPU parallel) ──
-    shards = write_arrayrecords(tokenized, args.output_dir, args.seq_len, workers=args.io_workers)
+    shards = write_arrayrecords(tokenized, args.output_dir, args.seq_len, workers=args.io_workers, source_id_to_scale=source_id_to_scale)
 
     # ── Manifest ──
     total = sum(s["count"] for s in shards)
