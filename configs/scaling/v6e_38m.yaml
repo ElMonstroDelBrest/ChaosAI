@@ -17,6 +17,7 @@ mamba2:
   scale_emb_dim: 2
   cross_res_weight: 1.0
   cross_res_R: 4
+  ret_weight: 0.01
 predictor:
   hidden_dim: 1024
   n_layers: 2
@@ -55,7 +56,7 @@ training:
   checkpoint_interval: 2000
 data:
   token_dir: data/tokens_combined/
-  arrayrecord_dir: data/arrayrecord_combined/
+  arrayrecord_dir: data/arrayrecord_combined_v2/
   val_split: 0.1
   num_workers: 4
   prefetch_buffer_size: 64

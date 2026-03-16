@@ -30,6 +30,7 @@ class Mamba2Config:
     scale_emb_dim: int = 0        # 0 = disabled; 2 = 2-dim scale embedding (Option B)
     cross_res_weight: float = 0.0  # 0 = disabled; >0 enables Option C loss
     cross_res_R: int = 4           # temporal subsampling factor for Option C
+    ret_weight: float = 0.0    # 0 = disabled; >0 enables return prediction auxiliary loss
 
 
 @dataclass(frozen=True)
