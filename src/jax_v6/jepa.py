@@ -70,6 +70,9 @@ class FinJEPA(nn.Module):
     cross_res_weight: float = 0.0
     cross_res_R: int = 4
 
+    # Return prediction auxiliary loss (Option A)
+    ret_weight: float = 0.0  # 0 = disabled; >0 enables causal next-return MSE loss
+
     @classmethod
     def from_config(cls, config: StrateIIConfig) -> "FinJEPA":
         """Construct FinJEPA from a StrateIIConfig dataclass."""
@@ -104,6 +107,7 @@ class FinJEPA(nn.Module):
             scale_emb_dim=config.mamba2.scale_emb_dim,
             cross_res_weight=getattr(config.mamba2, 'cross_res_weight', 0.0),
             cross_res_R=getattr(config.mamba2, 'cross_res_R', 4),
+            ret_weight=getattr(config.mamba2, 'ret_weight', 0.0),
         )
 
     def setup(self):
@@ -151,6 +155,9 @@ class FinJEPA(nn.Module):
             self.flow_predictor = None
 
         self.output_proj = nn.Dense(self.codebook_dim, name="output_proj")
+
+        # Return prediction head — always created (~d_model params, negligible)
+        self.return_head = nn.Dense(1, name="return_head")
 
         if self.expander_dim > 0:
             self.expander = nn.Dense(self.expander_dim, name="expander")
@@ -308,6 +315,19 @@ class FinJEPA(nn.Module):
             cfm_loss = jnp.sum(mask_3d * (v_pred - v_tgt) ** 2) / (n_valid * D)
             total_loss = total_loss + self.cfm_weight * cfm_loss
 
+        # Return prediction: h_x[:, t, :] -> r_{t+1} (causal — Mamba-2 is unidirectional)
+        ret_loss = jnp.float32(0.0)
+        if self.ret_weight > 0.0 and "returns" in batch:
+            r_pred = self.return_head(h_x[:, :-1, :]).squeeze(-1)  # (B, S-1)
+            r_next = batch["returns"][:, 1:].astype(jnp.float32)   # (B, S-1) target
+            # Z-score per batch: normalizes scale across asset classes
+            r_mean = jnp.mean(r_next)
+            r_std = jnp.std(r_next) + 1e-6
+            r_norm = (r_next - r_mean) / r_std
+            r_pred_norm = (r_pred - r_mean) / r_std
+            ret_loss = jnp.mean((r_pred_norm - r_norm) ** 2)
+            total_loss = total_loss + self.ret_weight * ret_loss
+
         total_loss = total_loss + self.cross_res_weight * cross_res_loss
 
         return {
@@ -317,6 +337,7 @@ class FinJEPA(nn.Module):
             "covariance": loss_dict["covariance"],
             "cfm_loss": cfm_loss,
             "cross_res_loss": cross_res_loss,
+            "ret_loss": ret_loss,
             "mask_ratio": jnp.mean(block_mask.astype(jnp.float32)) if block_mask is not None else jnp.float32(0.0),
             "n_targets": jnp.sum(target_mask.astype(jnp.float32)) / B,
         }
