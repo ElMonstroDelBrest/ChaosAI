@@ -85,6 +85,8 @@ if config.mamba2.gnn_dim > 0:
     dummy_batch["gnn_mask"] = jnp.zeros((B, S), dtype=jnp.float32)
 if config.mamba2.macro_dim > 0:
     dummy_batch["macro_context"] = jnp.zeros((B, S, config.mamba2.macro_dim), dtype=jnp.float32)
+if getattr(config.mamba2, 'ret_weight', 0.0) > 0.0:
+    dummy_batch["returns"] = jnp.zeros((B, S), dtype=jnp.float32)
 
 key = jax.random.PRNGKey(42)
 state = create_train_state(
