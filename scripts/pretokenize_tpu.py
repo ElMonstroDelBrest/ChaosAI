@@ -45,8 +45,8 @@ SCALE_ID_MAP = {
     'ohlcv_stocks_daily': 2, 'ohlcv_sp500': 2,
     'ohlcv_forex': 2, 'ohlcv_commodities': 2,
     'yfinance_parquet': 2, 'sp500': 2, 'stocks': 2,
-    # ohlcv_crypto_daily/futures and /spot — daily crypto (dir_tag distinct from futures_1m_parquet)
-    'futures': 2, 'spot': 2,
+    # NOTE: 'futures' and 'spot' are omitted — dir tag is ambiguous (1min vs daily).
+    # Always use --source_scales for explicit assignment when these dirs are present.
 }
 
 
