@@ -240,6 +240,10 @@ def load_jepa_params(ckpt_dir: str, config_path: str):
         "target_positions": jnp.zeros((B, 1), dtype=jnp.int64),
         "target_mask": jnp.zeros((B, 1), dtype=jnp.bool_),
     }
+    # scale_id: must be present if scale_emb_dim > 0, so that Flax init traces
+    # scale_embed and includes it in the params pytree (matching the checkpoint)
+    if getattr(config.mamba2, 'scale_emb_dim', 0) > 0:
+        dummy_batch["scale_id"] = jnp.zeros((B,), dtype=jnp.int32)
     # Include macro_context if model expects it (must match training init)
     if config.mamba2.macro_dim > 0:
         dummy_batch["macro_context"] = jnp.zeros((B, S, config.mamba2.macro_dim), dtype=jnp.float32)
@@ -264,7 +268,7 @@ def load_jepa_params(ckpt_dir: str, config_path: str):
     ckpt_base = os.path.abspath(os.path.dirname(ckpt_dir.rstrip("/")))
     ckpt_step = int(os.path.basename(ckpt_dir.rstrip("/")))
     ckpt_mgr = ocp.CheckpointManager(ckpt_base)
-    restored = ckpt_mgr.restore(ckpt_step, args=ocp.args.StandardRestore(dummy_state))
+    restored = ckpt_mgr.restore(ckpt_step, args=ocp.args.PyTreeRestore(dummy_state, partial_restore=True))
     log.info("Restored JEPA params from %s (step %d)", ckpt_base, ckpt_step)
     return restored.params, config, model
 
@@ -276,13 +280,20 @@ def main():
     parser.add_argument("--raw_dirs", nargs="*", default=[],
                         help="Directories with raw OHLCV files for close returns")
     parser.add_argument("--arrayrecord_dir", type=str, default="data/arrayrecord_multi/")
-    parser.add_argument("--jepa_ckpt_dir", type=str, default="checkpoints/jax_v6e/multi/21825/")
+    parser.add_argument("--jepa_ckpt_dir", "--jepa_ckpt", type=str, default="checkpoints/jax_v6e/multi/21825/",
+                        dest="jepa_ckpt_dir")
     parser.add_argument("--config", type=str, default="configs/scaling/v6e_multi.yaml")
     parser.add_argument("--output_dir", type=str, default="data/rl_buffer/")
     parser.add_argument("--max_batches", type=int, default=0, help="0 = all")
     parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--io_workers", type=int, default=8,
                         help="CPU workers for raw data loading (keep <=8 on TPU VMs)")
+    parser.add_argument("--seq_cutoff_ratio", type=float, default=0.0,
+                        help="If >0, save only the first fraction of each asset's sequences "
+                             "to output_dir (train split). E.g. 0.8 = first 80%% = pre-2024 approx.")
+    parser.add_argument("--oos_dir", type=str, default="",
+                        help="If set (and seq_cutoff_ratio>0), also save the last "
+                             "(1-ratio) sequences here for OOS evaluation.")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -481,7 +492,11 @@ def main():
 
     # Save per-asset npz files
     os.makedirs(args.output_dir, exist_ok=True)
+    oos_dir = args.oos_dir if args.oos_dir else None
+    if oos_dir:
+        os.makedirs(oos_dir, exist_ok=True)
     asset_meta = []
+    oos_meta = []
 
     for pair_name, buf in sorted(asset_buffers.items()):
         h = np.stack(buf["h_last"])      # (T, d_model)
@@ -489,25 +504,51 @@ def main():
         r = np.array(buf["returns"])     # (T,)
         bif = np.array(buf["bifurcation"], dtype=np.float32)  # (T,)
 
-        if h.shape[0] < 64:
+        if h.shape[0] < 30:  # lowered from 64: daily stocks have ~40 seqs at seq_len=128
             continue
 
-        # Z-score returns per-asset (normalizes across asset classes)
-        r_mean = r.mean()
-        r_std = max(r.std(), 1e-8)
-        r_normalized = (r - r_mean) / r_std
+        # Temporal split: first cutoff sequences = train, rest = OOS
+        if args.seq_cutoff_ratio > 0.0:
+            cutoff = max(30, int(h.shape[0] * args.seq_cutoff_ratio))
+            h_train, h_oos = h[:cutoff], h[cutoff:]
+            v_train, v_oos = v[:cutoff], v[cutoff:]
+            r_train, r_oos = r[:cutoff], r[cutoff:]
+            bif_train, bif_oos = bif[:cutoff], bif[cutoff:]
+        else:
+            h_train, v_train, r_train, bif_train = h, v, r, bif
+            h_oos, v_oos, r_oos, bif_oos = None, None, None, None
+
+        # Z-score returns using TRAIN stats only (no leakage into OOS)
+        r_mean = r_train.mean()
+        r_std = max(r_train.std(), 1e-8)
+        r_train_norm = (r_train - r_mean) / r_std
 
         out_path = os.path.join(args.output_dir, f"{pair_name}.npz")
-        np.savez_compressed(out_path, h_last=h, vol=v, returns=r_normalized,
-                            bifurcation_index=bif,
+        np.savez_compressed(out_path, h_last=h_train, vol=v_train, returns=r_train_norm,
+                            bifurcation_index=bif_train,
                             returns_mean=np.float32(r_mean), returns_std=np.float32(r_std))
         asset_meta.append({
             "pair": pair_name,
-            "n_steps": int(h.shape[0]),
+            "n_steps": int(h_train.shape[0]),
             "d_model": int(d_model),
             "path": out_path,
             "has_real_returns": pair_name in returns_lookup,
         })
+
+        # Save OOS portion if requested
+        if oos_dir and h_oos is not None and h_oos.shape[0] >= 10:
+            r_oos_norm = (r_oos - r_mean) / r_std  # same stats as train
+            oos_path = os.path.join(oos_dir, f"{pair_name}.npz")
+            np.savez_compressed(oos_path, h_last=h_oos, vol=v_oos, returns=r_oos_norm,
+                                bifurcation_index=bif_oos,
+                                returns_mean=np.float32(r_mean), returns_std=np.float32(r_std))
+            oos_meta.append({
+                "pair": pair_name,
+                "n_steps": int(h_oos.shape[0]),
+                "d_model": int(d_model),
+                "path": oos_path,
+                "has_real_returns": pair_name in returns_lookup,
+            })
 
     manifest_out = {
         "assets": asset_meta,
@@ -518,9 +559,28 @@ def main():
         "exo_clock_dim": int(exo_clock_dim),
         "assets_with_real_returns": matched,
         "returns_normalized": True,
+        "seq_cutoff_ratio": args.seq_cutoff_ratio,
     }
     with open(os.path.join(args.output_dir, "manifest.json"), "w") as f:
         json.dump(manifest_out, f, indent=2)
+
+    if oos_dir and oos_meta:
+        oos_manifest = {
+            "assets": oos_meta,
+            "n_assets": len(oos_meta),
+            "total_steps": sum(a["n_steps"] for a in oos_meta),
+            "d_model": int(d_model),
+            "seq_len": int(seq_len),
+            "exo_clock_dim": int(exo_clock_dim),
+            "assets_with_real_returns": sum(1 for a in oos_meta if a["has_real_returns"]),
+            "returns_normalized": True,
+            "seq_cutoff_ratio": args.seq_cutoff_ratio,
+            "split": "oos",
+        }
+        with open(os.path.join(oos_dir, "manifest.json"), "w") as f:
+            json.dump(oos_manifest, f, indent=2)
+        log.info("OOS buffer: %d assets, %d steps → %s",
+                 len(oos_meta), oos_manifest["total_steps"], oos_dir)
 
     elapsed = time.time() - t0
     log.info("=== DONE: %d assets (%d with real returns), %d total steps, "
