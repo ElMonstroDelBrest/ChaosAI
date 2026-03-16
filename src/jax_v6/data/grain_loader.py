@@ -69,6 +69,12 @@ def _parse_example(serialized: bytes, seq_len: int = 128, gnn_dim: int = 0,
     else:
         scale_id = np.int32(0)
 
+    # Returns: per-timestep log price returns (optional — legacy shards default to zeros)
+    if "returns" in features:
+        returns = np.array(features["returns"].float_list.value, dtype=np.float32)
+    else:
+        returns = np.zeros(seq_len, dtype=np.float32)
+
     result = {
         "token_indices": token_indices,
         "weekend_mask": weekend_mask,
@@ -76,6 +82,7 @@ def _parse_example(serialized: bytes, seq_len: int = 128, gnn_dim: int = 0,
         "pair_name": pair_name,
         "original_len": original_len,
         "scale_id": scale_id,
+        "returns": returns,
     }
 
     # GNN on-chain embeddings (Strate V) — present only when gnn_dim > 0
@@ -152,6 +159,7 @@ class ParseAndMask(grain.MapTransform):
             "block_mask": mask.astype(bool),
             "target_positions": padded_positions,
             "target_mask": target_mask,
+            "returns": parsed["returns"],
         }
 
         # GNN on-chain embeddings (Strate V)
