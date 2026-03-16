@@ -70,6 +70,7 @@ def train_step(
         "variance": outputs["variance"],
         "covariance": outputs["covariance"],
         "cfm_loss": outputs["cfm_loss"],
+        "ret_loss": outputs.get("ret_loss", jnp.float32(0.0)),
         "mask_ratio": outputs["mask_ratio"],
         "n_targets": outputs["n_targets"],
         "grad_norm": grad_norm,
@@ -110,4 +111,5 @@ def eval_step(
         "variance": outputs["variance"],
         "covariance": outputs["covariance"],
         "cfm_loss": outputs["cfm_loss"],
+        "ret_loss": outputs.get("ret_loss", jnp.float32(0.0)),
     }

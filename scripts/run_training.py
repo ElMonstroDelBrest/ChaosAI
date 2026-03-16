@@ -250,8 +250,9 @@ while True:
         mfu = compute_mfu(n_params, config.training.batch_size, S, avg_step_time, n_devices, peak_tflops=PEAK_TFLOPS)
         tps = compute_tokens_per_second(config.training.batch_size, S, avg_step_time)
         log.info(
-            "step %d | loss %.4f | grad %.2f | MFU %.1f%% | %.0f tok/s | %.3fs | ep %d",
-            step, float(metrics["loss"]), float(metrics["grad_norm"]),
+            "step %d | loss %.4f | ret %.4f | grad %.2f | MFU %.1f%% | %.0f tok/s | %.3fs | ep %d",
+            step, float(metrics["loss"]), float(metrics.get("ret_loss", 0.0)),
+            float(metrics["grad_norm"]),
             mfu * 100, tps, avg_step_time, epoch,
         )
         t0 = time.time()
