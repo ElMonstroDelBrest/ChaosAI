@@ -72,6 +72,11 @@ def _parse_example(serialized: bytes, seq_len: int = 128, gnn_dim: int = 0,
     # Returns: per-timestep log price returns (optional — legacy shards default to zeros)
     if "returns" in features:
         returns = np.array(features["returns"].float_list.value, dtype=np.float32)
+        # Guard against seq_len mismatch (e.g. shard from different pretokenize config)
+        if len(returns) < seq_len:
+            returns = np.pad(returns, (0, seq_len - len(returns)), constant_values=0.0)
+        elif len(returns) > seq_len:
+            returns = returns[:seq_len]
     else:
         returns = np.zeros(seq_len, dtype=np.float32)
 
