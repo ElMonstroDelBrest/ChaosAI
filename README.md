@@ -31,6 +31,19 @@ v6.1 adds: cross-attention macro injection, bifurcation-modulated CQL, risk-pari
 
 Multiverse Crossing (M=30, fresh data): Lyapunov **-0.73** (stable), Sharpe **2.78**, 0 contested assets.
 
+## Status
+
+| Component | Status |
+|-----------|--------|
+| Data pipeline (838M tokens, 8,969 assets) | ✅ Done |
+| Strate I — FSQ tokenizer (JAX/Flax) | ✅ Done |
+| Strate II — Mamba-2 JEPA, auto-sharding, XLA flags | ✅ Done |
+| Strate III — OT-CFM stochastic predictor | ✅ Done |
+| Strate IV — TD-MPC2 + CVaR + Multiverse Crossing | ✅ Done |
+| v6.1 training (100 epochs, TPU v6e) | ✅ Done |
+| v6.2 — scale-invariant JEPA (scale_id embedding + cross-res VICReg) | 🔄 Training |
+| v6.3 — return prediction auxiliary loss | 🔄 Implemented, retraining |
+
 ## Stack
 
 JAX/Flax (TPU-native) + PyTorch (GPU validation). TPU Research Cloud (TRC), zero idle cost via Drive ↔ GCS ↔ TPU data lake.
