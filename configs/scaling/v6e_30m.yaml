@@ -1,0 +1,80 @@
+###############################################################################
+# v6e-30M — ~30M params — Native 1-minute tokenizer training
+#
+# Target: v6e-8 (8 chips, 32 GB HBM each = 256 GB total)
+# Auto-Sharder: Mesh (8,1) DP pur
+# MXU alignment: head_dim = 512*2/8 = 128 (1 tile MXU parfait)
+#
+# Data: ~520M tokens (432 pairs × 1m candles, patch_length=1)
+# Chinchilla: 18.9M params → optimal ~378M tokens → ~0.73 epochs
+# 3 epochs provides margin for SGDR restarts
+#
+# Param estimate:
+#   Mamba-2 (10 layers, d=512): ~25M
+#   Embedding + Predictor: ~5M
+#   Total: ~30M
+#
+# HBM/chip: ~60 MB params bf16 → trivial sur v6e (32 GB HBM/chip)
+###############################################################################
+
+mamba2:
+  d_model: 512           # 4 blocs MXU (512/128)
+  d_state: 16
+  n_layers: 10           # 10 layers → ~30M params total
+  n_heads: 8             # head_dim = 512*2/8 = 128 (1 MXU tile)
+  expand_factor: 2       # d_inner = 1024 (8 blocs MXU)
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  gnn_dim: 256            # GNN on-chain embeddings (Strate V)
+  use_remat: false        # 30M → ~60 MB bf16, trivial
+
+predictor:
+  hidden_dim: 1024        # 2× d_model
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0         # desactive pour premier run
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 3.0e-4
+  weight_decay: 0.02
+  max_epochs: 3           # Chinchilla optimal ~0.73 epochs, 3 with SGDR margin
+  warmup_epochs: 5
+  batch_size: 4096        # auto-scales: 4096/64*N_chips (=512 on v6e-8, 4096 on v6e-64)
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 2            # 4 restarts → cycles trop courts (1300 steps), 2 → ~6700 steps/cycle
+  checkpoint_interval: 500
+
+data:
+  token_dir: "data/tokens_1m/"
+  arrayrecord_dir: "data/arrayrecord_1m_p1/"
+  val_split: 0.1
+  num_workers: 0
+  prefetch_buffer_size: 128

@@ -1,0 +1,75 @@
+{
+  "config": "configs/scaling/v6e_54m_gnn_cfm.yaml",
+  "checkpoint_step": 19857,
+  "n_params": 65119353,
+  "n_val_batches": 50,
+  "elapsed_seconds": 247.7,
+  "test1_oos_loss": {
+    "oos_loss": 1999.5,
+    "train_loss": 2462.0,
+    "ratio": 0.812,
+    "verdict": "GOOD",
+    "per_metric": {
+      "loss": {
+        "mean": 1999.51,
+        "std": 244.02
+      },
+      "invariance": {
+        "mean": 78.23,
+        "std": 9.89
+      },
+      "variance": {
+        "mean": 0.45,
+        "std": 0.03
+      },
+      "covariance": {
+        "mean": 31.99,
+        "std": 4.03
+      },
+      "cfm_loss": {
+        "mean": 0.65,
+        "std": 0.04
+      }
+    }
+  },
+  "test2_cfm_diversity": {
+    "inter_traj_std": 0.5014,
+    "pairwise_cosine": 0.7248,
+    "diversity_score": 0.2752,
+    "verdict": "HEALTHY"
+  },
+  "test3_latent_variance": {
+    "active_dims": 768,
+    "dead_dims": 0,
+    "effective_rank": 6.4,
+    "top10_eigenval_ratio": 0.892,
+    "verdict": "HEALTHY"
+  },
+  "test4_multiverse": {
+    "spread_start": 0.5260521769523621,
+    "spread_end": 0.5539833903312683,
+    "spread_ratio": 1.053095879214424,
+    "bifurcation_index": 0.09672369342297316,
+    "avg_clusters": 2.875,
+    "per_seq_bifurcation": [
+      0.09308242052793503,
+      0.09040062874555588,
+      0.10877826064825058,
+      0.09629641473293304,
+      0.09542027860879898,
+      0.07819551229476929,
+      0.10181285440921783,
+      0.10980317741632462
+    ],
+    "per_seq_clusters": [
+      3,
+      3,
+      3,
+      3,
+      2,
+      3,
+      3,
+      3
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "agent": {
+    "latent_dim": 256,
+    "hidden_dim": 512,
+    "train_step": 5000,
+    "train_best_sharpe": 2.190709327181175
+  },
+  "jepa": {
+    "params_M": 65.1,
+    "d_model": 768,
+    "checkpoint_step": 19857
+  },
+  "data": {
+    "n_test": 18855,
+    "n_pairs": 419,
+    "obs_dim": 3089
+  },
+  "tx_cost_roundtrip": 0.0008,
+  "strategies": {
+    "TD-MPC2": {
+      "sharpe_median": 2.191,
+      "sharpe_p25": -9.018,
+      "sharpe_p75": 14.345,
+      "cumret_median": 0.0041,
+      "maxdd_median": -0.03426,
+      "n_pairs": 419
+    },
+    "Buy & Hold": {
+      "sharpe_median": -2.191,
+      "sharpe_p25": -14.345,
+      "sharpe_p75": 9.018,
+      "cumret_median": -0.00548,
+      "maxdd_median": -0.03872,
+      "n_pairs": 419
+    }
+  },
+  "elapsed_seconds": 284.4
+}

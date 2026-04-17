@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-03-02T09:30:00Z",
+  "model": "Strate II 36.1M (v6e_38m) + QR-DQN (Sharpe 2.78)",
+  "data": "rl_buffer_fresh (fév-mars 2026, Iran crisis)",
+  "multiverse": {
+    "n_universes": 30,
+    "perturbation_sigma": 0.02,
+    "perturbation_type": "geodesic (on-manifold, tangent-plane projection + L2 renorm)",
+    "n_assets": 372,
+    "d_model": 512
+  },
+  "convergence_metrics": {
+    "convergence_score": 0.1546,
+    "inter_universe_std": 0.0096,
+    "bifurcation_index": 0.0032,
+    "lyapunov_proxy": -0.7300,
+    "mean_score_spread": 0.0404,
+    "contested_assets": 0
+  },
+  "regime": "STABLE — Lyapunov négatif, aucune bifurcation, signal robuste aux perturbations",
+  "portfolio": {
+    "n_long": 5,
+    "n_short": 5,
+    "net_exposure": 0.078,
+    "gross_exposure": 1.0
+  },
+  "long_positions": [
+    {"rank": 1, "asset": "CGPTUSDT", "score": 0.625, "score_std": 0.021, "weight": 0.1135, "consensus": "30/30", "stability": "ROCK SOLID"},
+    {"rank": 2, "asset": "LABUSDT", "score": 0.606, "score_std": 0.014, "weight": 0.1101, "consensus": "30/30", "stability": "ROCK SOLID"},
+    {"rank": 3, "asset": "TURBOUSDT", "score": 0.587, "score_std": 0.009, "weight": 0.1066, "consensus": "30/30", "stability": "ROCK SOLID"},
+    {"rank": 4, "asset": "ORDERUSDT", "score": 0.591, "score_std": 0.018, "weight": 0.1002, "consensus": "28/30", "stability": "ROCK SOLID"},
+    {"rank": 5, "asset": "DEXEUSDT", "score": 0.570, "score_std": 0.007, "weight": 0.0794, "consensus": "23/30", "stability": "STRONG"}
+  ],
+  "short_positions": [
+    {"rank": 1, "asset": "BNTUSDT", "score": -0.845, "score_std": 0.017, "weight": -0.1535, "consensus": "30/30", "stability": "ROCK SOLID"},
+    {"rank": 2, "asset": "AERGOUSDT", "score": -0.502, "score_std": 0.015, "weight": -0.0911, "consensus": "30/30", "stability": "ROCK SOLID"},
+    {"rank": 3, "asset": "CETUSUSDT", "score": -0.406, "score_std": 0.015, "weight": -0.0713, "consensus": "29/30", "stability": "ROCK SOLID"},
+    {"rank": 4, "asset": "MAGMAUSDT", "score": -0.404, "score_std": 0.025, "weight": -0.0636, "consensus": "26/30", "stability": "STRONG"},
+    {"rank": 5, "asset": "OXTUSDT", "score": -0.383, "score_std": 0.013, "weight": -0.0394, "consensus": "17/30", "stability": "MODERATE"}
+  ],
+  "training_context": {
+    "strate_ii_loss": 1310,
+    "strate_ii_params": "36.1M",
+    "strate_ii_tokens": "838M",
+    "dqn_best_sharpe": 2.78,
+    "dqn_steps": 1048576,
+    "buffer_assets": 372,
+    "cvar_alpha": 0.25,
+    "soft_alloc": true,
+    "slippage_factor": 0.001
+  }
+}

@@ -1,0 +1,81 @@
+###############################################################################
+# v6e-26M — Chinchilla-optimal for 520M tokens (patch_length=1)
+#
+# Target: v6e-8 (8 chips, 32 GB HBM each = 256 GB total)
+# Auto-Sharder: Mesh (8,1) DP pur
+# MXU alignment: head_dim = 512*2/8 = 128 (1 tile MXU parfait)
+#
+# Data: ~520M tokens (432 pairs × 1m candles, patch_length=1)
+# Chinchilla: 26M params × 20 = 520M tokens → 1 epoch exact
+#
+# Param estimate (d=512, 14 layers):
+#   Mamba-2: 14 × ~1.6M ≈ 22.4M
+#   Embedding + Predictor: ~3M
+#   Total: ~25-26M
+#
+# Only change from v6e_30m: n_layers 10→14, max_epochs 3→1, warmup/restarts
+# MXU alignment UNCHANGED: d_model, n_heads, expand_factor all identical
+# HBM/chip: ~52 MB params bf16 → trivial sur v6e (32 GB HBM/chip)
+###############################################################################
+
+mamba2:
+  d_model: 512           # 4 blocs MXU (512/128) — UNCHANGED
+  d_state: 16
+  n_layers: 14           # 14 layers → ~26M params (was 10 → 18.9M)
+  n_heads: 8             # head_dim = 512*2/8 = 128 (1 MXU tile) — UNCHANGED
+  expand_factor: 2       # d_inner = 1024 (8 blocs MXU) — UNCHANGED
+  conv_kernel: 4
+  encoder_type: "mamba"
+  exo_clock: true
+  chunk_size: 128
+  gnn_dim: 256
+  use_remat: false       # 26M → ~52 MB bf16, trivial
+
+predictor:
+  hidden_dim: 1024
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+  var_gamma: 1.0
+
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+
+training:
+  lr: 3.0e-4
+  weight_decay: 0.02
+  max_epochs: 1           # Chinchilla-exact: 26M params / 520M tokens
+  warmup_epochs: 0        # No epoch-based warmup (1 epoch only, use cosine)
+  batch_size: 4096        # auto-scales: 512 on v6e-8, 4096 on v6e-64
+  precision: "bf16"
+  grad_clip: 1.0
+  n_restarts: 1           # Single cosine cycle (n_restarts=0 crashes with warmup=0)
+  checkpoint_interval: 500
+
+data:
+  token_dir: "data/tokens_1m/"
+  arrayrecord_dir: "data/arrayrecord_1m_p1/"
+  val_split: 0.1
+  num_workers: 0
+  prefetch_buffer_size: 128

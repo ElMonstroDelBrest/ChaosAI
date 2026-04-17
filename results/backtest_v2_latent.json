@@ -1,0 +1,82 @@
+{
+  "version": "v2_latent_state",
+  "model": {
+    "params_M": 65.1,
+    "d_model": 768,
+    "checkpoint_step": 19857,
+    "config": "configs/scaling/v6e_54m_gnn_cfm.yaml"
+  },
+  "data": {
+    "n_pairs": 419,
+    "arrayrecord_dir": "data/arrayrecord_1m_p1/",
+    "seq_len": 128,
+    "future_len": 32,
+    "n_test_windows": 18855
+  },
+  "strategies_config": {
+    "vol_classifier_bal_acc": 0.613,
+    "vol_classifier_C": 0.1,
+    "kmeans_K": 4,
+    "kmeans_regime_sharpes": {
+      "0": 2.422,
+      "1": 2.133,
+      "2": 4.15,
+      "3": -2.294
+    },
+    "anomaly_percentile": 80,
+    "anomaly_threshold": 50.236
+  },
+  "tx_cost_roundtrip": 0.0008,
+  "aggregation": "per-pair median [IQR]",
+  "strategies": {
+    "S1: Vol-Target": {
+      "sharpe_median": -9.981,
+      "sharpe_p25": -21.206,
+      "sharpe_p75": 1.724,
+      "cumret_median": -0.01559,
+      "cumret_p25": -0.03154,
+      "cumret_p75": 0.00252,
+      "maxdd_median": -0.033,
+      "maxdd_p25": -0.04686,
+      "maxdd_p75": -0.02096,
+      "n_pairs": 419
+    },
+    "S2: Regime K-Means": {
+      "sharpe_median": -10.93,
+      "sharpe_p25": -24.295,
+      "sharpe_p75": 0.0,
+      "cumret_median": -0.01958,
+      "cumret_p25": -0.03824,
+      "cumret_p75": -0.00025,
+      "maxdd_median": -0.03665,
+      "maxdd_p25": -0.05201,
+      "maxdd_p75": -0.02307,
+      "n_pairs": 419
+    },
+    "S3: Anomaly Filter": {
+      "sharpe_median": -5.404,
+      "sharpe_p25": -17.979,
+      "sharpe_p75": 6.14,
+      "cumret_median": -0.01172,
+      "cumret_p25": -0.03432,
+      "cumret_p75": 0.01263,
+      "maxdd_median": -0.03559,
+      "maxdd_p25": -0.0539,
+      "maxdd_p75": -0.02312,
+      "n_pairs": 419
+    },
+    "Buy & Hold": {
+      "sharpe_median": -1.898,
+      "sharpe_p25": -14.084,
+      "sharpe_p75": 9.349,
+      "cumret_median": -0.00494,
+      "cumret_p25": -0.03459,
+      "cumret_p75": 0.01934,
+      "maxdd_median": -0.03848,
+      "maxdd_p25": -0.05786,
+      "maxdd_p75": -0.02577,
+      "n_pairs": 419
+    }
+  },
+  "elapsed_seconds": 247.1
+}

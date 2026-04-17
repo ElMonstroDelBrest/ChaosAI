@@ -62,3 +62,16 @@ paper/*.toc
 # Tool-specific configs (personal, not part of the project)
 CLAUDE.md
 .gemini/
+
+# Misplaced duplicates / throwaways (canonical copies live elsewhere)
+src/jax_v6/losses/config.py
+src/jax_v6/losses/grain_loader.py
+src/jax_v6/losses/jepa.py
+src/jax_v6/losses/mamba2_block.py
+src/jax_v6/losses/precompute_rl_buffer.py
+src/jax_v6/losses/run_training.py
+rewrite_paper.py
+rewrite_paper_advanced.py
+
+# Internal research notes — kept local
+docs/plans/
