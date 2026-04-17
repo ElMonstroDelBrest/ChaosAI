@@ -121,9 +121,13 @@ contribution is their integration and the Multiverse Crossing evaluation.
 
 ## Acknowledgments
 
-Compute provided by Google's [TPU Research Cloud (TRC)](https://sites.research.google/trc/)
-on v6e-64, europe-west4-a. The TRC grant is a non-commercial research program; this
-repository is published under AGPL-3.0 to comply with its open-source requirement.
+Research supported with Cloud TPUs from Google's
+[TPU Research Cloud (TRC)](https://sites.research.google/trc/) (v6e-64, europe-west4-a).
+TRC is a non-commercial research program; code is released under AGPL-3.0 in line with
+the program's expectation that TRC-supported research be shared openly. The project
+follows [Google's AI Principles](https://ai.google/responsibility/principles/) and is
+intended exclusively for academic research — not for trading, surveillance, or any
+revenue-generating activity.
 
 ## License
 
