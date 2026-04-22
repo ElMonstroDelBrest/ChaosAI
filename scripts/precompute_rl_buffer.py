@@ -294,6 +294,10 @@ def main():
     parser.add_argument("--oos_dir", type=str, default="",
                         help="If set (and seq_cutoff_ratio>0), also save the last "
                              "(1-ratio) sequences here for OOS evaluation.")
+    parser.add_argument("--mvx_cfm", type=int, default=0,
+                        help="If >0 AND model has CFM, use M trajectories from "
+                             "flow_predictor as bifurcation source (proper MVX). "
+                             "0 = legacy tangent-plane noise (default).")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -325,25 +329,104 @@ def main():
     params = jax.device_put(params, jax.devices()[0])
     log.info("JEPA params loaded, d_model=%d", d_model)
 
-    # JIT context encoder (macro_context=None is safe: encoder checks None)
-    # Use lambda method — submodules from setup() aren't accessible outside apply()
+    # JIT context encoder. When --mvx_cfm > 0 AND the model has flow_predictor,
+    # also returns CFM-based bifurcation per sequence (proper Multiverse Crossing
+    # surrogate, Rice-theorem grounded — sample M alternative latent futures via
+    # the CFM flow predictor, measure eigenvalue entropy of their Gram matrix).
+    use_cfm_mvx = args.mvx_cfm > 0 and getattr(config.predictor, 'cfm_weight', 0.0) > 0.0
+    M_MVX = args.mvx_cfm if use_cfm_mvx else 0
+    log.info("MVX mode: %s (M=%d, cfm_weight=%g)",
+             "CFM-based" if use_cfm_mvx else "noise (legacy)",
+             M_MVX, getattr(config.predictor, 'cfm_weight', 0.0))
+
     def _encode_fn(self, token_indices, weekend_mask, exo_clock, scale_id):
-        h_x = self.context_encoder(
+        out = self.context_encoder(
             token_indices,
             weekend_mask=weekend_mask,
             block_mask=None,
             exo_clock=exo_clock,
             scale_id=scale_id,
         )
-        return h_x[:, -1, :]  # (B, d_model)
+        # Encoder may return (h_x, hidden_states) when return_hidden_states=True
+        h_x = out[0] if isinstance(out, tuple) else out
+        return h_x  # (B, S, d_model) — return full context for CFM sampling
 
     @jax.jit
-    def encode_batch(params, token_indices, weekend_mask, exo_clock, scale_id):
+    def encode_full(params, token_indices, weekend_mask, exo_clock, scale_id):
         return model.apply(
             {"params": params},
             token_indices, weekend_mask, exo_clock, scale_id,
             method=_encode_fn,
         )
+
+    if use_cfm_mvx:
+        # Build a standalone FlowPredictor instance, sample method takes its own params
+        from src.jax_v6.predictors.flow_predictor import FlowPredictor
+        flow_pred = FlowPredictor(
+            d_model=d_model,
+            hidden_dim=config.predictor.hidden_dim,
+            n_layers=config.predictor.n_layers,
+            seq_len=seq_len,
+            dropout=config.predictor.dropout,
+            ot=config.predictor.cfm_ot,
+        )
+
+        # Manual Euler integration — diffrax 0.7 is incompatible with our JIT
+        # boundaries (ODETerm wrapping fails the AbstractTerm check inside jit).
+        # We reimplement a 2-step Euler explicitly using the velocity field.
+        @jax.jit
+        def sample_one(flow_params, h_x, target_positions, key):
+            """One CFM trajectory at target_positions via 2-step Euler.
+
+            Returns: (B, d_model) — sampled latent at the (single) target position.
+            """
+            B, N_tgt = target_positions.shape
+            n_steps = 2
+            x0 = jax.random.normal(key, (B, N_tgt, d_model), dtype=h_x.dtype)
+            dt = 1.0 / n_steps
+            y = x0
+            for step in range(n_steps):
+                t_batch = jnp.full((B,), step * dt, dtype=h_x.dtype)
+                v = flow_pred.apply(
+                    {"params": flow_params},
+                    y, t_batch, h_x, target_positions, True,
+                    method=flow_pred._forward_velocity,
+                )
+                y = y + dt * v
+            return y[:, 0, :]  # (B, d_model)
+
+        @jax.jit
+        def bifurcation_from_samples(samples_stack):
+            """Eigenvalue entropy per batch elem from (M, B, d) samples."""
+            samples_norm = samples_stack / (
+                jnp.linalg.norm(samples_stack, axis=-1, keepdims=True) + 1e-8)
+            gram = jnp.einsum("kbd,lbd->bkl", samples_norm, samples_norm)
+            eigvals = jnp.abs(jnp.linalg.eigvalsh(gram))
+            eigvals = eigvals / (eigvals.sum(axis=-1, keepdims=True) + 1e-10)
+            return -jnp.sum(eigvals * jnp.log(eigvals + 1e-10), axis=-1)
+
+        def sample_and_bif(flow_params, h_x, key):
+            """Sample M CFM trajectories at last position, return bifurcation per seq.
+
+            Python-loop over M (diffrax doesn't compose with vmap).
+            """
+            B, S = h_x.shape[0], h_x.shape[1]
+            target_positions = jnp.full((B, 1), S - 1, dtype=jnp.int32)
+            keys = jax.random.split(key, M_MVX)
+            samples = [sample_one(flow_params, h_x, target_positions, k) for k in keys]
+            samples = jnp.stack(samples, axis=0)  # (M, B, d_model)
+            return bifurcation_from_samples(samples)
+
+    def encode_batch(params, token_indices, weekend_mask, exo_clock, scale_id, key=None):
+        """Returns h_last (B, d_model) and optionally cfm_bifurcation (B,)."""
+        h_x = encode_full(params, token_indices, weekend_mask, exo_clock, scale_id)
+        h_last = h_x[:, -1, :]
+        cfm_bif = None
+        if use_cfm_mvx and key is not None:
+            cfm_bif = sample_and_bif(params["flow_predictor"], h_x, key)
+        # Block on h_last to release h_x from device memory between batches
+        h_last.block_until_ready()
+        return h_last, cfm_bif
 
     # Read ArrayRecords (main thread, no multiprocessing — safe after JAX init)
     log.info("Reading ArrayRecord shards...")
@@ -378,30 +461,38 @@ def main():
     # JIT warmup
     log.info("JIT compiling encoder...")
     bs = min(args.batch_size, N)
+    warmup_key = jax.random.PRNGKey(0)
     _ = encode_batch(
         params,
         jnp.array(all_tokens_np[:bs]),
         jnp.array(all_weekend_np[:bs]),
         jnp.array(all_exo_np[:bs]),
         jnp.array(all_scale_ids_np[:bs]),
+        warmup_key,
     )
     log.info("JIT done")
 
     # Batched inference
     all_h_last = []
+    all_cfm_bif = [] if use_cfm_mvx else None
     batch_count = 0
     t_inf = time.time()
+    rng = np.random.default_rng(42)
 
     for start in range(0, N, args.batch_size):
         end = min(start + args.batch_size, N)
-        h_last = encode_batch(
+        bk = jax.random.PRNGKey(int(rng.integers(2**31)))
+        h_last, cfm_bif = encode_batch(
             params,
             jnp.array(all_tokens_np[start:end]),
             jnp.array(all_weekend_np[start:end]),
             jnp.array(all_exo_np[start:end]),
             jnp.array(all_scale_ids_np[start:end]),
+            bk,
         )
         all_h_last.append(np.asarray(h_last))
+        if use_cfm_mvx:
+            all_cfm_bif.append(np.asarray(cfm_bif))
         batch_count += 1
 
         if batch_count % 50 == 0:
@@ -421,35 +512,45 @@ def main():
     log.info("JEPA inference done: %d sequences in %.1fs", N, time.time() - t_inf)
     del all_tokens_np, all_weekend_np  # free
 
-    # ── Bifurcation index per sequence (M=3 geodesic perturbations) ──────────
-    # Measures market chaos: high = bifurcating regimes, low = universe consensus.
-    # Used by: CQL alpha modulation (tdmpc2.py) and PER (train_cross_sectional.py).
-    # Cost: M=3 geodesic perturbations + 3×3 eigenvalue decomposition per sequence.
-    log.info("Computing bifurcation indices (M=3 perturbations, N=%d)...", N)
-    t_bif = time.time()
-    M_BIF = 3
-    SIGMA_BIF = 0.01
-    rng_bif = np.random.default_rng(42)
-    all_bifurcation = np.zeros(N, dtype=np.float32)
+    # ── Bifurcation index per sequence ──────────────────────────────────────
+    # CFM-based MVX (proper, when --mvx_cfm > 0 and v6.5+ checkpoint with CFM):
+    #   M alternative latent futures sampled via flow_predictor → eigenvalue
+    #   entropy of their Gram matrix. This IS the model's response to perturbations,
+    #   not pure noise around the latent.
+    #
+    # Legacy noise-based (fallback, M=3 tangent-plane noise on JEPA latent):
+    #   measures eigenvalue entropy of M random points near h_norm. Not actually
+    #   model-dependent (saturated at sigma+M values). Kept for backward compat.
+    if use_cfm_mvx:
+        all_bifurcation = np.concatenate(all_cfm_bif)  # already computed during encode
+        log.info("Bifurcation (CFM, M=%d): mean=%.4f, std=%.4f, max=%.4f",
+                 M_MVX, all_bifurcation.mean(), all_bifurcation.std(), all_bifurcation.max())
+    else:
+        log.info("Computing legacy bifurcation indices (M=3 noise, N=%d)...", N)
+        t_bif = time.time()
+        M_BIF = 3
+        SIGMA_BIF = 0.01
+        rng_bif = np.random.default_rng(42)
+        all_bifurcation = np.zeros(N, dtype=np.float32)
 
-    for i in range(N):
-        h = all_h_last[i]  # (d_model,)
-        h_norm = h / (np.linalg.norm(h) + 1e-8)
-        perturbed = []
-        for _ in range(M_BIF):
-            noise = rng_bif.standard_normal(h.shape).astype(np.float32) * SIGMA_BIF
-            noise = noise - np.dot(noise, h_norm) * h_norm  # tangent plane projection
-            h_p = h_norm + noise
-            h_p = h_p / (np.linalg.norm(h_p) + 1e-8)
-            perturbed.append(h_p)
-        H_mat = np.stack(perturbed)                     # (M, d)
-        cov = H_mat @ H_mat.T                           # (M, M)
-        eigvals = np.abs(np.linalg.eigvalsh(cov))
-        eigvals = eigvals / (eigvals.sum() + 1e-10)
-        all_bifurcation[i] = -np.sum(eigvals * np.log(eigvals + 1e-10))  # entropy
+        for i in range(N):
+            h = all_h_last[i]  # (d_model,)
+            h_norm = h / (np.linalg.norm(h) + 1e-8)
+            perturbed = []
+            for _ in range(M_BIF):
+                noise = rng_bif.standard_normal(h.shape).astype(np.float32) * SIGMA_BIF
+                noise = noise - np.dot(noise, h_norm) * h_norm  # tangent plane projection
+                h_p = h_norm + noise
+                h_p = h_p / (np.linalg.norm(h_p) + 1e-8)
+                perturbed.append(h_p)
+            H_mat = np.stack(perturbed)                     # (M, d)
+            cov = H_mat @ H_mat.T                           # (M, M)
+            eigvals = np.abs(np.linalg.eigvalsh(cov))
+            eigvals = eigvals / (eigvals.sum() + 1e-10)
+            all_bifurcation[i] = -np.sum(eigvals * np.log(eigvals + 1e-10))  # entropy
 
-    log.info("Bifurcation done: %.1fs, mean=%.4f, max=%.4f",
-             time.time() - t_bif, all_bifurcation.mean(), all_bifurcation.max())
+        log.info("Bifurcation done: %.1fs, mean=%.4f, max=%.4f",
+                 time.time() - t_bif, all_bifurcation.mean(), all_bifurcation.max())
 
     # ── Phase 3: Merge returns + vol + embeddings → save per-asset ──
     vol_proxy = all_exo_np[:, :, 0].mean(axis=1)  # (N,) mean RV per sequence
