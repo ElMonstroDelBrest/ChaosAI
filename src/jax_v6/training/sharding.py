@@ -236,6 +236,10 @@ def shard_train_state(state: PyTree, mesh: Mesh) -> PyTree:
 
     def _shard_leaf(path: str, x):
         """Shard une feuille selon son chemin dans le pytree."""
+        # Scalars (rank 0) cannot be sharded on a named axis — replicate instead.
+        # This happens for params like `step` counters inside opt_state (Adam: count).
+        if getattr(x, "ndim", 0) == 0:
+            return jax.device_put(x, replicated)
         if any(k in path for k in ("params", "opt_state", "mu", "nu")):
             return jax.device_put(x, fsdp)
         return jax.device_put(x, replicated)

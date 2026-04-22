@@ -15,6 +15,7 @@ from flax import linen as nn
 from jax import Array
 
 from .mamba2_block import Mamba2Block
+from .mamba3_block import Mamba3Block
 
 
 class Mamba2Encoder(nn.Module):
@@ -39,6 +40,9 @@ class Mamba2Encoder(nn.Module):
     macro_dim: int = 0             # Macro context dim (0 = disabled)
     use_macro_cross_attn: bool = False  # True = cross-attn macro → prefix token; False = legacy gated
     scale_emb_dim: int = 0             # scale_id embedding dim (0 = disabled)
+    use_attn_res: bool = False         # Attention Residuals (port from ../JEPA)
+    return_hidden_states: bool = False  # static: return list of all layer outputs (for depth-attn heads)
+    encoder_type: str = "mamba"         # "mamba" = Mamba-2 block; "mamba3" = Mamba-3 (complex SSM, trapezoidal)
 
     @staticmethod
     def _sinusoidal_embed(seq_len: int, d_model: int) -> Array:
@@ -209,6 +213,16 @@ class Mamba2Encoder(nn.Module):
         #   "full"  — recompute everything (most memory-efficient, default)
         #   "dots"  — save matmul outputs, recompute elementwise ops
         #             (better memory/compute tradeoff at 1B+ params)
+        # Pick the block class: Mamba-2 (default) or Mamba-3 (complex SSM).
+        if self.encoder_type == "mamba3":
+            _BlockBase = Mamba3Block
+        elif self.encoder_type in ("mamba", "mamba2"):
+            _BlockBase = Mamba2Block
+        else:
+            raise ValueError(
+                f"Unknown encoder_type '{self.encoder_type}'; expected 'mamba', 'mamba2', or 'mamba3'"
+            )
+
         if self.use_remat:
             if self.remat_policy not in ("full", "dots"):
                 raise ValueError(
@@ -218,19 +232,70 @@ class Mamba2Encoder(nn.Module):
                 _policy = jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims
             else:  # "full" — recompute everything (default, most memory-efficient)
                 _policy = None
-            BlockCls = nn.remat(Mamba2Block, policy=_policy)
+            BlockCls = nn.remat(_BlockBase, policy=_policy)
         else:
-            BlockCls = Mamba2Block
+            BlockCls = _BlockBase
+
+        # AttnRes state (port from ../JEPA): each layer's input is a softmax-weighted
+        # mixture of all prior hidden states (incl. h₀). Grounded in DenseFormer —
+        # lets deeper layers selectively re-read shallower abstractions.
+        track_hidden = self.use_attn_res or self.return_hidden_states
+        if self.use_attn_res:
+            attn_queries = self.param(
+                "attn_queries",
+                nn.initializers.zeros,
+                (self.n_layers, self.d_model),
+            )
+            key_norm = nn.RMSNorm(name="attnres_key_norm")
+        else:
+            attn_queries = None
+            key_norm = None
+
+        hidden_states = [x] if track_hidden else None
+        normed_states = [key_norm(x)] if self.use_attn_res else None
+
         for i in range(self.n_layers):
-            x = BlockCls(
-                d_model=self.d_model,
-                d_state=self.d_state,
-                n_heads=self.n_heads,
-                expand_factor=self.expand_factor,
-                conv_kernel=self.conv_kernel,
-                chunk_size=self.chunk_size,
-                name=f"layers_{i}",
-            )(x, weekend_mask=weekend_mask, vol_clock=vol_clock, exo_clock=exo_clock)
+            if self.use_attn_res and i > 0:
+                # Stack prior hidden states along a leading depth axis.
+                V = jnp.stack(hidden_states, axis=0)           # (L_i, B, S, d_model)
+                K = jnp.stack(normed_states, axis=0)           # (L_i, B, S, d_model)
+                logits = jnp.einsum("d,lbtd->lbt", attn_queries[i], K)
+                alpha = jax.nn.softmax(logits, axis=0)          # (L_i, B, S)
+                h_in = jnp.einsum("lbt,lbtd->btd", alpha, V)   # (B, S, d_model)
+            else:
+                h_in = x
+
+            if self.encoder_type == "mamba3":
+                # Mamba-3 has no conv_kernel / chunk_size args — single-chunk SSD matrix scan.
+                h_out = BlockCls(
+                    d_model=self.d_model,
+                    d_state=self.d_state,
+                    n_heads=self.n_heads,
+                    expand_factor=self.expand_factor,
+                    name=f"layers_{i}",
+                )(h_in, weekend_mask=weekend_mask, vol_clock=vol_clock, exo_clock=exo_clock)
+            else:
+                h_out = BlockCls(
+                    d_model=self.d_model,
+                    d_state=self.d_state,
+                    n_heads=self.n_heads,
+                    expand_factor=self.expand_factor,
+                    conv_kernel=self.conv_kernel,
+                    chunk_size=self.chunk_size,
+                    name=f"layers_{i}",
+                )(h_in, weekend_mask=weekend_mask, vol_clock=vol_clock, exo_clock=exo_clock)
+
+            if track_hidden:
+                hidden_states.append(h_out)
+            if self.use_attn_res:
+                normed_states.append(key_norm(h_out))
+            x = h_out
 
         # Final layer norm
-        return nn.LayerNorm(name="norm")(x)
+        x_out = nn.LayerNorm(name="norm")(x)
+
+        if self.return_hidden_states:
+            # For depth-attn heads: return all layer outputs
+            # (h_0 = input embedding pre-blocks, h_1..h_N = each Mamba block output).
+            return x_out, hidden_states
+        return x_out

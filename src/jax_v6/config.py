@@ -31,6 +31,8 @@ class Mamba2Config:
     cross_res_weight: float = 0.0  # 0 = disabled; >0 enables Option C loss
     cross_res_R: int = 4           # temporal subsampling factor for Option C
     ret_weight: float = 0.0    # 0 = disabled; >0 enables return prediction auxiliary loss
+    use_attn_res: bool = False   # Attention Residuals: each layer's input = softmax-weighted mixture of all prior hidden states (port from ../JEPA)
+    use_depth_attn_ret_head: bool = False  # return_head attends over all encoder layer outputs (requires use_attn_res or return_hidden_states internally)
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,14 @@ class PredictorConfig:
     cfm_n_steps: int = 2
     cfm_ot: bool = True
     cfm_ot_batch_size: int = 256
+    # Asymmetric Transformer predictor (port from ../JEPA).
+    # "mlp" (default) = current stochastic MLP predictor.
+    # "transformer"   = deep+narrow Transformer, cross-attends full context.
+    predictor_type: str = "mlp"
+    d_pred: int = 64           # must divide by n_pred_heads; < d_model for anti-collapse
+    n_pred_layers: int = 6     # depth of the narrow Transformer stack
+    n_pred_heads: int = 4      # d_pred / n_pred_heads = head_dim
+    pred_use_attn_res: bool = True
 
 
 @dataclass(frozen=True)

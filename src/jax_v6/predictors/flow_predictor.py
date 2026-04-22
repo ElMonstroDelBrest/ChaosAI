@@ -138,6 +138,7 @@ class FlowPredictor(nn.Module):
         v_pred = self._forward_velocity(x_t, t, h_x, target_positions, deterministic)
         return v_pred, v_tgt
 
+    @nn.compact
     def _forward_velocity(
         self,
         x_t: Array,

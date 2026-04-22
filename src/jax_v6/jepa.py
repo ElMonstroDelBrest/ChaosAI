@@ -21,6 +21,8 @@ from .config import StrateIIConfig
 from .encoders.mamba2_encoder import Mamba2Encoder
 from .predictors.predictor import Predictor
 from .predictors.flow_predictor import FlowPredictor
+from .predictors.depth_attn_head import DepthAttnHead
+from .predictors.transformer_predictor import TransformerPredictor
 from .losses.vicreg import invariance_loss, vicreg_loss, barlow_twins_loss, cross_resolution_loss
 
 
@@ -52,6 +54,12 @@ class FinJEPA(nn.Module):
     pred_n_layers: int = 2
     pred_dropout: float = 0.1
     pred_z_dim: int = 32
+    # Asymmetric Transformer predictor (off by default)
+    predictor_type: str = "mlp"          # "mlp" or "transformer"
+    d_pred: int = 64
+    n_pred_layers: int = 6
+    n_pred_heads: int = 4
+    pred_use_attn_res: bool = True
 
     # CFM config
     cfm_weight: float = 1.0
@@ -72,6 +80,11 @@ class FinJEPA(nn.Module):
 
     # Return prediction auxiliary loss (Option A)
     ret_weight: float = 0.0  # 0 = disabled; >0 enables causal next-return MSE loss
+
+    # Ports from ../JEPA
+    use_attn_res: bool = False              # Attention Residuals in encoder layers
+    use_depth_attn_ret_head: bool = False   # return_head attends over all encoder layer outputs
+    encoder_type: str = "mamba"             # "mamba" = Mamba-2; "mamba3" = Mamba-3 (complex SSM + trapezoidal)
 
     @classmethod
     def from_config(cls, config: StrateIIConfig) -> "FinJEPA":
@@ -96,6 +109,11 @@ class FinJEPA(nn.Module):
             pred_n_layers=config.predictor.n_layers,
             pred_dropout=config.predictor.dropout,
             pred_z_dim=config.predictor.z_dim,
+            predictor_type=getattr(config.predictor, 'predictor_type', 'mlp'),
+            d_pred=getattr(config.predictor, 'd_pred', 64),
+            n_pred_layers=getattr(config.predictor, 'n_pred_layers', 6),
+            n_pred_heads=getattr(config.predictor, 'n_pred_heads', 4),
+            pred_use_attn_res=getattr(config.predictor, 'pred_use_attn_res', True),
             cfm_weight=config.predictor.cfm_weight,
             cfm_n_steps=config.predictor.cfm_n_steps,
             cfm_ot=config.predictor.cfm_ot,
@@ -108,9 +126,15 @@ class FinJEPA(nn.Module):
             cross_res_weight=getattr(config.mamba2, 'cross_res_weight', 0.0),
             cross_res_R=getattr(config.mamba2, 'cross_res_R', 4),
             ret_weight=getattr(config.mamba2, 'ret_weight', 0.0),
+            use_attn_res=getattr(config.mamba2, 'use_attn_res', False),
+            use_depth_attn_ret_head=getattr(config.mamba2, 'use_depth_attn_ret_head', False),
+            encoder_type=getattr(config.mamba2, 'encoder_type', 'mamba'),
         )
 
     def setup(self):
+        # Expose hidden states only when depth-attn head needs them — avoids changing
+        # the encoder return type for all other runs (and checkpoint compatibility).
+        encoder_return_hidden = self.use_depth_attn_ret_head and self.ret_weight > 0.0
         self.context_encoder = Mamba2Encoder(
             num_codes=self.num_codes,
             codebook_dim=self.codebook_dim,
@@ -128,18 +152,35 @@ class FinJEPA(nn.Module):
             macro_dim=self.macro_dim,
             use_macro_cross_attn=self.use_macro_cross_attn,
             scale_emb_dim=self.scale_emb_dim,
+            use_attn_res=self.use_attn_res,
+            return_hidden_states=encoder_return_hidden,
+            encoder_type=self.encoder_type,
             name="context_encoder",
         )
 
-        self.predictor = Predictor(
-            d_model=self.d_model,
-            hidden_dim=self.pred_hidden_dim,
-            n_layers=self.pred_n_layers,
-            seq_len=self.seq_len,
-            dropout=self.pred_dropout,
-            z_dim=self.pred_z_dim,
-            name="predictor",
-        )
+        # Predictor: asymmetric deep-and-narrow Transformer (port from ../JEPA)
+        # or the original stochastic MLP. Transformer variant cross-attends the
+        # full context sequence and is intentionally d_pred < d_model.
+        if self.predictor_type == "transformer":
+            self.predictor = TransformerPredictor(
+                d_model=self.d_model,
+                d_pred=self.d_pred,
+                tgt_len=self.seq_len,
+                n_layers=self.n_pred_layers,
+                n_heads=self.n_pred_heads,
+                use_attn_res=self.pred_use_attn_res,
+                name="predictor",
+            )
+        else:
+            self.predictor = Predictor(
+                d_model=self.d_model,
+                hidden_dim=self.pred_hidden_dim,
+                n_layers=self.pred_n_layers,
+                seq_len=self.seq_len,
+                dropout=self.pred_dropout,
+                z_dim=self.pred_z_dim,
+                name="predictor",
+            )
 
         if self.cfm_weight > 0.0:
             self.flow_predictor = FlowPredictor(
@@ -156,8 +197,20 @@ class FinJEPA(nn.Module):
 
         self.output_proj = nn.Dense(self.codebook_dim, name="output_proj")
 
-        # Return prediction head — always created (~d_model params, negligible)
-        self.return_head = nn.Dense(1, name="return_head")
+        # Return prediction head. Default: Dense(1) on final-layer h_x[:, t, :]
+        # (used by v6.3). When use_depth_attn_ret_head=True, swap to a depth-
+        # attention head that consumes the full encoder layer stack — each
+        # timestep chooses its optimal abstraction depth. Requires the encoder
+        # to be built with return_hidden_states=True (set up in setup()).
+        if self.use_depth_attn_ret_head and self.ret_weight > 0.0:
+            self.return_head = DepthAttnHead(
+                hidden_dim=min(self.d_model, 64),
+                out_dim=1,
+                apply_per_timestep=True,
+                name="return_head",
+            )
+        else:
+            self.return_head = nn.Dense(1, name="return_head")
 
         if self.expander_dim > 0:
             self.expander = nn.Dense(self.expander_dim, name="expander")
@@ -201,7 +254,8 @@ class FinJEPA(nn.Module):
         key_z, key_cfm = jax.random.split(key)
 
         # 1. Context encoder: sees full sequence with [MASK] at target positions
-        h_x = self.context_encoder(
+        encoder_return_hidden = self.use_depth_attn_ret_head and self.ret_weight > 0.0
+        h_x_out = self.context_encoder(
             token_indices,
             weekend_mask=weekend_mask,
             block_mask=block_mask,
@@ -210,7 +264,11 @@ class FinJEPA(nn.Module):
             gnn_mask=gnn_mask,
             macro_context=macro_context,
             scale_id=scale_id,
-        )  # (B, S, d_model)
+        )
+        if encoder_return_hidden:
+            h_x, h_x_hidden = h_x_out
+        else:
+            h_x, h_x_hidden = h_x_out, None
 
         # Option C: temporal scale-space consistency loss
         cross_res_loss = jnp.float32(0.0)
@@ -225,40 +283,44 @@ class FinJEPA(nn.Module):
         # target_params is already the context_encoder subset
         # (set in create_train_state from params["context_encoder"])
         if target_params is not None:
-            h_y = jax.lax.stop_gradient(
-                self.context_encoder.apply(
-                    {"params": target_params},
-                    token_indices,
-                    weekend_mask=weekend_mask,
-                    block_mask=None,  # Target sees everything
-                    exo_clock=exo_clock,
-                    gnn_embeddings=gnn_embeddings,
-                    gnn_mask=gnn_mask,
-                    macro_context=macro_context,
-                    scale_id=scale_id,
-                )
+            h_y_out = self.context_encoder.apply(
+                {"params": target_params},
+                token_indices,
+                weekend_mask=weekend_mask,
+                block_mask=None,  # Target sees everything
+                exo_clock=exo_clock,
+                gnn_embeddings=gnn_embeddings,
+                gnn_mask=gnn_mask,
+                macro_context=macro_context,
+                scale_id=scale_id,
             )
         else:
             # During init: just use context encoder directly
-            h_y = jax.lax.stop_gradient(
-                self.context_encoder(
-                    token_indices,
-                    weekend_mask=weekend_mask,
-                    block_mask=None,
-                    exo_clock=exo_clock,
-                    gnn_embeddings=gnn_embeddings,
-                    gnn_mask=gnn_mask,
-                    macro_context=macro_context,
-                    scale_id=scale_id,
-                )
-            )  # (B, S, d_model)
+            h_y_out = self.context_encoder(
+                token_indices,
+                weekend_mask=weekend_mask,
+                block_mask=None,
+                exo_clock=exo_clock,
+                gnn_embeddings=gnn_embeddings,
+                gnn_mask=gnn_mask,
+                macro_context=macro_context,
+                scale_id=scale_id,
+            )
+        # Target encoder only needs the final hidden state; discard hidden-states list.
+        h_y = jax.lax.stop_gradient(h_y_out[0] if encoder_return_hidden else h_y_out)
 
-        # 3. Predict target representations with stochastic noise z
+        # 3. Predict target representations
         N_tgt = target_positions.shape[1]
-        z = jax.random.normal(key_z, (B, N_tgt, self.pred_z_dim), dtype=h_x.dtype)
-        h_y_pred = self.predictor(
-            h_x, target_positions, z=z, deterministic=deterministic
-        )  # (B, N_tgt, d_model)
+        if self.predictor_type == "transformer":
+            # Transformer predictor outputs (B, seq_len, d_model) over ALL positions;
+            # gather the requested target_positions via vmap.
+            h_pred_grid = self.predictor(h_x)  # (B, seq_len, d_model)
+            h_y_pred = jax.vmap(lambda h, idx: h[idx])(h_pred_grid, target_positions)
+        else:
+            z = jax.random.normal(key_z, (B, N_tgt, self.pred_z_dim), dtype=h_x.dtype)
+            h_y_pred = self.predictor(
+                h_x, target_positions, z=z, deterministic=deterministic
+            )  # (B, N_tgt, d_model)
 
         # 4. Gather true target representations from target encoder
         # target_positions: (B, N_tgt) -> index into h_y: (B, S, d_model)
@@ -318,7 +380,13 @@ class FinJEPA(nn.Module):
         # Return prediction: h_x[:, t, :] -> r_{t+1} (causal — Mamba-2 is unidirectional)
         ret_loss = jnp.float32(0.0)
         if self.ret_weight > 0.0 and "returns" in batch:
-            r_pred = self.return_head(h_x[:, :-1, :]).squeeze(-1)  # (B, S-1)
+            if self.use_depth_attn_ret_head and h_x_hidden is not None:
+                # Depth-attn head consumes the full layer stack at every timestep.
+                # Slice per-timestep stack to the causal positions [:, :-1, :].
+                hidden_causal = [h[:, :-1, :] for h in h_x_hidden]  # each (B, S-1, D)
+                r_pred = self.return_head(hidden_causal).squeeze(-1)  # (B, S-1)
+            else:
+                r_pred = self.return_head(h_x[:, :-1, :]).squeeze(-1)  # (B, S-1)
             r_next = batch["returns"][:, 1:].astype(jnp.float32)   # (B, S-1) target
             # Z-score per batch: normalizes scale across asset classes
             r_mean = jnp.mean(r_next)
