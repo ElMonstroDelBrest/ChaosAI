@@ -5,8 +5,11 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![JAX](https://img.shields.io/badge/JAX-0.6-orange)](https://jax.readthedocs.io)
 [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://www.python.org)
+[![Status: Research](https://img.shields.io/badge/status-research--only-red)](#disclaimer)
 
-> Research only. Not a trading system. Not financial advice.
+> ⚠️ **Academic research artifact only. Not a trading system, not financial advice,
+> not for commercial use. The author disclaims all liability for any use of this
+> code or results. See [Disclaimer](#disclaimer).**
 
 ## TL;DR
 
@@ -137,6 +140,30 @@ and the smoke-test protocol.
   US stocks daily/hourly, S&P 500, forex, commodities)
 - **Compute**: Google Cloud TPU v6e-8 (Trillium)
 
+## Limitations and scope
+
+This is **a research artifact, not a deployable trading system.** Specifically:
+
+- **All Sharpe figures are backtest-only.** No live trading record exists. Real
+  execution would face exchange-side slippage 5–20× larger than the quadratic
+  proxy used here, market-impact costs not modeled at retail size, exchange
+  fees per rebalance not netted at the institutional rate assumed, and regime
+  shifts the model has never seen.
+- **Statistical confidence is wide.** The headline Sharpe 1.32 has a 95% confidence
+  interval of approximately [0.9, 1.7] given the sample size; out-of-distribution
+  performance in unseen market regimes is not guaranteed.
+- **Capacity is unmeasured and likely small.** Trading any meaningful size on the
+  long-tail of the 8,969-asset universe would cause significant own-order
+  market impact.
+- **No production engineering.** No risk management, position sizing,
+  kill-switches, exchange API integration, monitoring, or operational tooling
+  is provided. Building these is non-trivial.
+- **No legal review.** In many jurisdictions, providing trading signals or
+  managing third-party capital requires regulatory licensing.
+
+The repository is intended for **methodological reproducibility** of the
+leakage-detection finding and the CFM-based fix — not for live deployment.
+
 ## Numerical safeguards
 
 The implementation enforces three invariants required for stable training at scale:
@@ -182,6 +209,41 @@ Compute provided by Google's [TPU Research Cloud](https://sites.research.google/
 (v6e-8, europe-west4-a). TRC is a non-commercial research program; this work is
 released under AGPL-3.0 in alignment with the program's expectation that
 TRC-supported research be shared openly.
+
+## Disclaimer
+
+This software and the associated results are released **strictly for academic
+research and educational purposes**. Use is governed by the AGPL-3.0 license
+([`LICENSE`](LICENSE)) and by the additional restrictions and disclaimers below.
+
+**No commercial use.** This work was produced under the Google TPU Research
+Cloud program, a non-commercial research grant. Use of this code or any
+derivative model thereof for commercial purposes — including but not limited
+to live trading for profit, paid advisory services, managed accounts, or
+licensing to third parties — is **not authorized** and may additionally
+violate the terms of the underlying compute grant.
+
+**Not financial advice.** Nothing in this repository constitutes investment
+advice, an offer to buy or sell any security, or a solicitation of any kind.
+The author is not a registered investment adviser, broker-dealer, or financial
+analyst. Reported performance metrics are derived from historical backtests
+on past market data and **do not guarantee** future results. Live deployment
+would face execution costs, market impact, regulatory constraints, and regime
+shifts that are not captured by the backtest.
+
+**No warranty, no liability.** This software is provided "as is", without
+warranty of any kind, express or implied, including but not limited to the
+warranties of merchantability, fitness for a particular purpose, and
+non-infringement. **In no event shall the author be liable for any claim,
+damages, or other liability** — including direct, indirect, incidental,
+special, consequential, or exemplary damages, or any loss of profit, capital,
+or data — arising from, out of, or in connection with the use of this software,
+its results, or any decision made on the basis of either.
+
+**User assumes all risk.** Any person who downloads, runs, modifies, or
+otherwise relies on this code does so entirely at their own risk and is
+solely responsible for compliance with all applicable laws, regulations, and
+exchange terms-of-service in their jurisdiction.
 
 ## License
 
