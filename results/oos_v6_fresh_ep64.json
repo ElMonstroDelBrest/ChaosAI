@@ -1,0 +1,24 @@
+{
+  "global_sharpe": -0.4370319806817509,
+  "global_mean": -0.13640332221984863,
+  "global_std": 0.3121128976345062,
+  "n_eval": 2000,
+  "episode_len": 64,
+  "k_assets": 16,
+  "n_assets_oos": 728,
+  "asset_classes": {
+    "crypto": 728
+  },
+  "per_class": {
+    "crypto": {
+      "sharpe": -0.39088330551452194,
+      "mean": -0.12584610283374786,
+      "std": 0.3219531178474426,
+      "n_assets": 728,
+      "n_eval": 500
+    }
+  },
+  "dqn_ckpt": "checkpoints/cross_sectional_v6/best_cs_dqn.npz",
+  "oos_dir": "data/rl_buffer_v6_fresh/",
+  "elapsed_s": 23.1
+}

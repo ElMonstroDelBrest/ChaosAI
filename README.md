@@ -18,15 +18,20 @@ We train a 33M-parameter Mamba-3 JEPA on 838M financial tokens and find that the
 Adding a Conditional Flow Matching (CFM) auxiliary objective during pretraining
 **eliminates the leakage gap** while preserving downstream performance.
 
-| Model | In-domain | Within-pretrain "OOS" | Truly fresh OOS | Leakage gap |
-|-------|----------:|----------------------:|----------------:|------------:|
-| Mamba-3 JEPA            | 5.54 | **6.57** | **−0.45** | **−7.02** |
-| Mamba-3 JEPA + CFM      | 0.53 |  0.32   | **+0.40** | **+0.08** |
+| Model | Params | In-domain | Within-pretrain "OOS" | Truly fresh OOS | Leakage gap |
+|-------|-------:|----------:|----------------------:|----------------:|------------:|
+| Mamba-3 JEPA                          |  33M | 5.54 | **6.57** | **−0.45** | **−7.02** |
+| Mamba-3 JEPA + CFM                    |  33M | 0.53 |  0.32    | **+0.40** | **+0.08** |
+| Mamba-3 JEPA + CFM (scaled, fixed reg) |  60M | 0.39 | −0.05    | **−0.44** | **−0.82** |
 
 Sharpe is computed over 2,000 cross-sectional portfolios of 16 crypto assets each,
 trained DQN evaluated on truly held-out post-pretraining data
 (2026-03-01 → 2026-04-21). Increasing the holding horizon from 64 to 256 steps
-yields Sharpe **1.32 (super-additive scaling)**.
+yields Sharpe **1.32 (super-additive scaling)** for the 33M+CFM model.
+
+**Scaling caveat.** Doubling parameters (33M → 60M) at fixed `cfm_weight=1.0`
+reintroduces +0.82 Sharpe units of leakage. The CFM regularization weight must
+scale with model capacity. See [`results/v6.6_scaling_ablation.md`](results/v6.6_scaling_ablation.md).
 
 ## Method
 
