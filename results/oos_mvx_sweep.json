@@ -1,0 +1,44 @@
+{
+  "oos_dir": "data/rl_buffer_fresh/",
+  "dqn_ckpt": "checkpoints/cross_sectional_v4/best_cs_dqn.npz",
+  "n_eval": 2000,
+  "k_assets": 16,
+  "episode_len": 64,
+  "sweep": {
+    "thr_1.0000": {
+      "threshold": 1.0,
+      "active_fraction": 1.0,
+      "sharpe": -0.4489135548203143,
+      "mean": -0.11777762323617935,
+      "std": 0.26236146688461304
+    },
+    "thr_0.1800": {
+      "threshold": 0.18,
+      "active_fraction": 0.9944548076923077,
+      "sharpe": -0.44466329282621164,
+      "mean": -0.11746107041835785,
+      "std": 0.26415732502937317
+    },
+    "thr_0.1700": {
+      "threshold": 0.17,
+      "active_fraction": 0.7916971153846154,
+      "sharpe": -0.36647340540053586,
+      "mean": -0.10926809161901474,
+      "std": 0.29816102981567383
+    },
+    "thr_0.1650": {
+      "threshold": 0.165,
+      "active_fraction": 0.47500240384615383,
+      "sharpe": -0.19158735758714146,
+      "mean": -0.07284478098154068,
+      "std": 0.380217045545578
+    },
+    "thr_0.1600": {
+      "threshold": 0.16,
+      "active_fraction": 0.17143365384615383,
+      "sharpe": -0.052313012854190516,
+      "mean": -0.021021828055381775,
+      "std": 0.4018470048904419
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "global_sharpe": 0.3202559144248923,
+  "global_mean": 0.09380339831113815,
+  "global_std": 0.2929013669490814,
+  "n_eval": 2000,
+  "episode_len": 64,
+  "k_assets": 16,
+  "n_assets_oos": 663,
+  "asset_classes": {
+    "crypto": 662,
+    "stocks": 1
+  },
+  "per_class": {
+    "crypto": {
+      "sharpe": 0.36503331883225676,
+      "mean": 0.10379258543252945,
+      "std": 0.28433728218078613,
+      "n_assets": 662,
+      "n_eval": 500
+    },
+    "stocks": {
+      "sharpe": 0.3704623960426146,
+      "mean": 0.10726359486579895,
+      "std": 0.28953975439071655,
+      "n_assets": 1,
+      "n_eval": 500
+    }
+  },
+  "dqn_ckpt": "checkpoints/cross_sectional_v5/best_cs_dqn.npz",
+  "oos_dir": "data/rl_buffer_v5_oos/",
+  "elapsed_s": 32.5
+}

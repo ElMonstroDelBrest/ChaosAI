@@ -1,134 +1,188 @@
-# ChaosAI — Time-Series Foundation Model
+# ChaosAI
 
-Self-supervised world model for chaotic dynamical systems, evaluated on financial markets.
-
-> **DISCLAIMER:** Research only. Not a trading system. Not financial advice.
+**Self-supervised foundation model for chaotic time series, with leakage-free out-of-sample evaluation.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![JAX](https://img.shields.io/badge/JAX-0.6-orange)](https://jax.readthedocs.io)
+[![Python](https://img.shields.io/badge/Python-3.10+-green)](https://www.python.org)
 
-## Overview
+> Research only. Not a trading system. Not financial advice.
 
-ChaosAI is a four-stratum pipeline for learning compressed, predictive representations of
-non-stationary time series. Each stratum is a recent self-supervised or RL component
-(FSQ tokenization, Mamba-2 JEPA, OT Conditional Flow Matching, TD-MPC2), composed so that
-each level of abstraction is learnable independently and then cascaded. The system is
-domain-agnostic by design; we use crypto and equity markets as a stress test because
-their non-stationarity, heavy tails, and weak signal-to-noise make them a worst-case
-benchmark for representation robustness.
+## TL;DR
 
-**What is novel.** The contribution is not any single strate — each of them exists in the
-literature. The contribution is **Multiverse Crossing**, an evaluation method for
-self-supervised time-series representations. Instead of scoring a single deterministic
-forward pass, we generate *M* parallel universes by geodesic perturbation on the tangent
-plane of the JEPA representation hypersphere, re-normalize to the unit sphere, and measure
-the downstream agreement across universes. The resulting metrics — Lyapunov-style
-stability proxy, bifurcation index, cross-universe decision consensus — give a geometric
-test of whether a learned representation's downstream behavior is driven by signal or by
-noise. We find that representations with Lyapunov < 0 and bifurcation ≈ 0 produce
-decisions that are robust to 2% geodesic perturbations; this correlates with
-out-of-sample performance on the financial backtest (Sharpe 2.78 vs 1.22 for deterministic).
+We train a 33M-parameter Mamba-3 JEPA on 838M financial tokens and find that the
+**standard cross-sectional out-of-sample evaluation protocol leaks +7 Sharpe units**.
+Adding a Conditional Flow Matching (CFM) auxiliary objective during pretraining
+**eliminates the leakage gap** while preserving downstream performance.
 
-**Why it matters beyond finance.** Any time-series domain where the cost of a wrong
-decision is high (medical diagnosis, climate forecasting, industrial fault detection,
-neuroscience) benefits from a per-decision robustness test, not just an average metric.
-Multiverse Crossing is model-agnostic once a representation sits on a normalized manifold
-(any contrastive / JEPA / SimCLR-style embedding space).
+| Model | In-domain | Within-pretrain "OOS" | Truly fresh OOS | Leakage gap |
+|-------|----------:|----------------------:|----------------:|------------:|
+| Mamba-3 JEPA            | 5.54 | **6.57** | **−0.45** | **−7.02** |
+| Mamba-3 JEPA + CFM      | 0.53 |  0.32   | **+0.40** | **+0.08** |
 
-## Architecture
+Sharpe is computed over 2,000 cross-sectional portfolios of 16 crypto assets each,
+trained DQN evaluated on truly held-out post-pretraining data
+(2026-03-01 → 2026-04-21). Increasing the holding horizon from 64 to 256 steps
+yields Sharpe **1.32 (super-additive scaling)**.
+
+## Method
+
+A four-stratum pipeline; each stratum trains independently on the previous one's output.
 
 ```
-Raw OHLCV → [Strate I: FSQ Tokenizer] → discrete codes
-          → [Strate II: Mamba-2 JEPA]  → latent embeddings
-          → [Strate III: OT-CFM]       → N future trajectories
-          → [Strate IV: TD-MPC2 Agent] → trading actions
+Raw OHLCV → [Strate I:  FSQ Tokenizer]    → discrete codes
+          → [Strate II: Mamba-3 JEPA + CFM] → latent embeddings
+          → [Strate III: Cross-sectional QR-DQN] → portfolio actions
+          → [Strate IV: Multiverse Crossing]   → decision-confidence filter
 ```
 
-- **Strate I** — Dilated CNN + Finite Scalar Quantization (1024 codes, zero codebook collapse)
-- **Strate II** — Mamba-2 SSD + VICReg JEPA + cross-attention macro conditioning (FRED/COT)
-- **Strate III** — Optimal Transport Flow Matching, multimodal latent futures
-- **Strate IV** — TD-MPC2 + CVaR + Multiverse Crossing (M=30 geodesic perturbations)
+- **Strate I** — Dilated CNN + Finite Scalar Quantization (1024 codes, no codebook collapse)
+- **Strate II** — Mamba-3 JEPA (trapezoidal SSM with complex RoPE on B/C, BCNorm), Attention
+  Residuals across encoder depth, asymmetric Transformer predictor (d_pred=64 < d_model=512),
+  CFM flow predictor with optimal-transport coupling
+- **Strate III** — Quantile-regression DQN with CVaR-α critic, soft cross-sectional allocation
+- **Strate IV** — Multiverse Crossing — geodesic perturbation consensus on the JEPA
+  hypersphere as a tractable surrogate for representation robustness
 
-## Results
+## Headline contributions
 
-| Model | Params | Dataset | Loss | Strate IV Sharpe |
-|-------|--------|---------|------|-----------------|
-| v6 | 36.1M | 838M tokens | 1,310 | 2.63 |
-| **v6.1** | **36.6M** | **838M tokens** | **908** | **2.78** |
+1. **Leakage measurement.** Standard per-asset temporal split inflates cross-sectional
+   Sharpe by +7.02 units in foundation-model finance ML when the encoder is pretrained
+   on all dates.
+2. **CFM as Bayesian-by-construction regularization.** A flow-predictor auxiliary
+   objective during pretraining internalizes uncertainty into the encoder, eliminating
+   the leakage gap (−7.02 → +0.08).
+3. **Multiverse Crossing surrogate.** A geodesic perturbation consensus metric provides
+   a tractable computable surrogate for the (Rice-undecidable) representation robustness
+   property; CFM-sample variance is more discriminative than tangent-plane noise.
 
-v6.1 adds: cross-attention macro injection, bifurcation-modulated CQL, risk-parity rewards, priority experience replay.
+Full results and methodology in [`results/v6.5_cfm_leakage_elimination.md`](results/v6.5_cfm_leakage_elimination.md).
 
-Multiverse Crossing (M=30, fresh data): Lyapunov **−0.73** (stable), Sharpe **2.78**, 0/372 contested assets.
-Full results in [`results/multiverse_crossing_30u.md`](results/multiverse_crossing_30u.md).
+## Repository layout
 
-## Status
+```
+src/jax_v6/               JAX/Flax foundation model + RL pipeline
+  encoders/               Mamba-2, Mamba-3, SSD scans (chunked + matrix)
+  predictors/             MLP, Transformer, KAN, FlowPredictor (CFM)
+  losses/                 VICReg, Barlow Twins, cross-resolution consistency
+  strate_iv/              Cross-sectional environment, QR-DQN, MVX
+  training/               Sharding, optimizer, train state, metrics
 
-| Component | Status |
-|-----------|--------|
-| Data pipeline (838M tokens, 8,969 assets) | ✅ Done |
-| Strate I — FSQ tokenizer (JAX/Flax) | ✅ Done |
-| Strate II — Mamba-2 JEPA, auto-sharding, XLA flags | ✅ Done |
-| Strate III — OT-CFM stochastic predictor | ✅ Done |
-| Strate IV — TD-MPC2 + CVaR + Multiverse Crossing | ✅ Done |
-| v6.1 training (100 epochs, TPU v6e) | ✅ Done |
-| v6.2 — scale-invariant JEPA (scale_id embedding + cross-res VICReg) | 🔄 Training |
-| v6.3 — return prediction auxiliary loss | 🔄 Implemented, retraining |
+scripts/                  End-to-end pipeline scripts
+  train_strate_i_jax.py   Tokenizer training
+  pretokenize_tpu.py      Tokenize raw OHLCV → ArrayRecord shards
+  run_training.py         JEPA pretraining
+  precompute_rl_buffer.py JEPA inference + CFM-based MVX bifurcation
+  train_cross_sectional.py  Cross-sectional DQN training
+  eval_oos_temporal.py    Held-out OOS evaluation
+  eval_oos_mvx.py         OOS evaluation with MVX confidence filter
+  probe_fresh_jepa.py     Linear probe (Ridge) on frozen embeddings
 
-## Stack
+configs/scaling/          Pre-set training configurations
+results/                  Evaluation JSONs and writeups
+tests/                    PyTest unit tests for the JAX modules
+```
 
-JAX/Flax (TPU-native) + PyTorch (GPU validation). Training done on Google
-[TPU Research Cloud](https://sites.research.google/trc/) (v6e-64, europe-west4-a),
-zero-idle-cost data lake via Drive ↔ GCS ↔ TPU.
-
-Key TPU-side design choices:
-- **Auto-sharder** detects v6e / v5e / v5p meshes and routes to optimal (8,8) Tore 2D or (16,4) Tore 3D
-- **MXU 128×128 alignment** on every `head_dim` to saturate the matrix unit
-- **bf16 activations, fp32 SSD accumulators** — required for numerical stability past step ~2750
-
-## Quick Start
+## Quick start
 
 ```bash
 # Setup
 uv venv && source .venv/bin/activate && uv sync
 export PYTHONPATH=$PWD
 
-# Train (TPU v6e)
-export SCALE_CONFIG=configs/scaling/v6e_38m_v3.yaml
-export GCS_BUCKET=gs://fin-ia-eu
-nohup python3 -u scripts/run_training.py > logs/train.log 2>&1 &
+# Train Mamba-3 JEPA + CFM (TPU v6e-8)
+SCALE_CONFIG=configs/scaling/v6e_38m_v5.yaml \
+SCALE_TIER=38m_v5 \
+TPU_TYPE=v6e-8 \
+TPU_GEN=v6e \
+GCS_BUCKET=gs://your-bucket \
+python scripts/run_training.py
 
-# BTC regime prediction
-PYTHONPATH=. python3 scripts/predict_btc_1week.py \
-    --jepa_ckpt checkpoints/jax_v6e/38m_v3/92112 \
-    --strate_i_ckpt checkpoints/strate_i_jax_combined/best_params.npz
+# Precompute RL buffer with CFM-based MVX (M=30 trajectory samples)
+python scripts/precompute_rl_buffer.py \
+  --raw_dirs <raw_parquet_dirs...> \
+  --arrayrecord_dir data/arrayrecord_combined/ \
+  --jepa_ckpt_dir checkpoints/jax_v6e/38m_v5/<step>/ \
+  --config configs/scaling/v6e_38m_v5.yaml \
+  --output_dir data/rl_buffer_v5/ \
+  --seq_cutoff_ratio 0.8 \
+  --oos_dir data/rl_buffer_v5_oos/ \
+  --mvx_cfm 30
+
+# Train cross-sectional DQN
+python scripts/train_cross_sectional.py \
+  --buffer_dir data/rl_buffer_v5/ \
+  --output_dir checkpoints/cross_sectional_v5/ \
+  --total_steps 1000000
+
+# Evaluate on truly held-out data + MVX confidence sweep
+python scripts/eval_oos_temporal.py \
+  --oos_dir data/rl_buffer_v5_fresh/ \
+  --dqn_ckpt checkpoints/cross_sectional_v5/best_cs_dqn.npz \
+  --episode_len 256 --n_eval 500 --k_assets 16
+
+python scripts/eval_oos_mvx.py \
+  --oos_dir data/rl_buffer_v5_fresh/ \
+  --dqn_ckpt checkpoints/cross_sectional_v5/best_cs_dqn.npz \
+  --thresholds 10.0 2.85 2.80 2.70 2.60
 ```
 
-See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for GPU fallback setup, environment
-pinning, and a 5-minute smoke test that validates the full pipeline on a single batch.
+See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the GPU fallback path
+and the smoke-test protocol.
+
+## Stack
+
+- **Modeling**: JAX 0.6, Flax 0.10, Optax, Diffrax (CFM ODE solver)
+- **Data**: Grain + ArrayRecord shards, 838M tokens (8,969 assets: crypto futures+spot 1m,
+  US stocks daily/hourly, S&P 500, forex, commodities)
+- **Compute**: Google Cloud TPU v6e-8 (Trillium)
+
+## Numerical safeguards
+
+The implementation enforces three invariants required for stable training at scale:
+
+- **MXU 128×128 alignment** — `head_dim = d_model · expand_factor / n_heads = 128`
+  ensures TPU matrix-unit tiles fully fill, avoiding ≥50% compute waste.
+- **bf16 with float32 SSD accumulators** — temporal accumulations (`cumsum`, RoPE phase,
+  state decays) stay in float32 to prevent the bf16-mantissa NaN that surfaces near
+  step ~2,750.
+- **Geodesic perturbations** — `multiverse_crossing.perturb_latent` projects noise onto
+  the tangent plane of the JEPA representation hypersphere then re-normalizes to keep
+  perturbed latents on-manifold.
 
 ## References
 
-The architecture is a composition of four recent self-supervised / RL components; our
-contribution is their integration and the Multiverse Crossing evaluation.
+ChaosAI is the integration of recent self-supervised and reinforcement-learning
+components — the contribution is the leakage-detection methodology and the CFM-based
+fix, not any single building block.
 
-- **FSQ (Strate I)** — Mentzer, F. et al. *Finite Scalar Quantization: VQ-VAE Made Simple.* ICLR 2024. [arXiv:2309.15505](https://arxiv.org/abs/2309.15505)
-- **Mamba-2 (Strate II)** — Dao, T. & Gu, A. *Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality.* ICML 2024. [arXiv:2405.21060](https://arxiv.org/abs/2405.21060)
-- **JEPA** — LeCun, Y. *A Path Towards Autonomous Machine Intelligence.* Meta AI, 2022. [openreview](https://openreview.net/pdf?id=BZ5a1r-kVsf)
-- **VICReg** — Bardes, A., Ponce, J., LeCun, Y. *VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning.* ICLR 2022. [arXiv:2105.04906](https://arxiv.org/abs/2105.04906)
-- **OT-CFM (Strate III)** — Tong, A. et al. *Improving and Generalizing Flow-Based Generative Models with Minibatch Optimal Transport.* TMLR 2024. [arXiv:2302.00482](https://arxiv.org/abs/2302.00482)
-- **TD-MPC2 (Strate IV)** — Hansen, N., Su, H., Wang, X. *TD-MPC2: Scalable, Robust World Models for Continuous Control.* ICLR 2024. [arXiv:2310.16828](https://arxiv.org/abs/2310.16828)
-- **CVaR RL** — Chow, Y. et al. *Risk-Sensitive and Robust Decision-Making: a CVaR Optimization Approach.* NeurIPS 2015. [arXiv:1506.02188](https://arxiv.org/abs/1506.02188)
-- **KAN** — Liu, Z. et al. *KAN: Kolmogorov-Arnold Networks.* 2024. [arXiv:2404.19756](https://arxiv.org/abs/2404.19756)
+- **JEPA** — LeCun, Y. *A Path Towards Autonomous Machine Intelligence*. 2022. [openreview](https://openreview.net/pdf?id=BZ5a1r-kVsf)
+- **VICReg** — Bardes, A., Ponce, J., LeCun, Y. *VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning*. ICLR 2022. [arXiv:2105.04906](https://arxiv.org/abs/2105.04906)
+- **Mamba-2** — Dao, T. & Gu, A. *Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality*. ICML 2024. [arXiv:2405.21060](https://arxiv.org/abs/2405.21060)
+- **Mamba-3** — *Mamba-3: Improved Sequence Modeling Using State Space Principles*. 2026. [arXiv:2603.15569](https://arxiv.org/abs/2603.15569)
+- **FSQ** — Mentzer, F. et al. *Finite Scalar Quantization: VQ-VAE Made Simple*. ICLR 2024. [arXiv:2309.15505](https://arxiv.org/abs/2309.15505)
+- **OT-CFM** — Tong, A. et al. *Improving and Generalizing Flow-Based Generative Models with Minibatch Optimal Transport*. TMLR 2024. [arXiv:2302.00482](https://arxiv.org/abs/2302.00482)
+- **CVaR RL** — Chow, Y. et al. *Risk-Sensitive and Robust Decision-Making: a CVaR Optimization Approach*. NeurIPS 2015. [arXiv:1506.02188](https://arxiv.org/abs/1506.02188)
+
+## Citation
+
+```bibtex
+@misc{chaosai2026,
+  author       = {Gherasim, George-Daniel},
+  title        = {{ChaosAI: Leakage-Free Out-of-Sample Evaluation for Foundation
+                   Models on Financial Time Series}},
+  year         = {2026},
+  howpublished = {\url{https://github.com/ElMonstroDelBrest/ChaosAI}},
+}
+```
 
 ## Acknowledgments
 
-Research supported with Cloud TPUs from Google's
-[TPU Research Cloud (TRC)](https://sites.research.google/trc/) (v6e-64, europe-west4-a).
-TRC is a non-commercial research program; code is released under AGPL-3.0 in line with
-the program's expectation that TRC-supported research be shared openly. The project
-follows [Google's AI Principles](https://ai.google/responsibility/principles/) and is
-intended exclusively for academic research — not for trading, surveillance, or any
-revenue-generating activity.
+Compute provided by Google's [TPU Research Cloud](https://sites.research.google/trc/)
+(v6e-8, europe-west4-a). TRC is a non-commercial research program; this work is
+released under AGPL-3.0 in alignment with the program's expectation that
+TRC-supported research be shared openly.
 
 ## License
 
-[AGPL v3](LICENSE)
+[AGPL-3.0](LICENSE)

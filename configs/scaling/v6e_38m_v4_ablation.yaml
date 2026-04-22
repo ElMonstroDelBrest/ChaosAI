@@ -1,0 +1,66 @@
+mamba2:
+  d_model: 512
+  d_state: 16
+  n_layers: 20
+  n_heads: 8
+  expand_factor: 2
+  conv_kernel: 4
+  encoder_type: mamba3          # Mamba-3 encoder: complex SSM via RoPE + trapezoidal disc
+  exo_clock: true
+  exo_clock_dim: 4
+  gnn_dim: 0
+  macro_dim: 48
+  chunk_size: 128
+  use_remat: false
+  remat_policy: full
+  use_macro_cross_attn: true
+  ret_weight: 0.01
+  use_attn_res: true            # AttnRes (DenseFormer-style attention residuals over layer stack)
+  use_depth_attn_ret_head: true # depth-attention return head
+predictor:
+  hidden_dim: 1024
+  n_layers: 2
+  dropout: 0.1
+  z_dim: 32
+  cfm_weight: 0.0
+  cfm_n_steps: 2
+  cfm_ot: true
+  cfm_ot_batch_size: 256
+  predictor_type: transformer   # asymmetric deep+narrow Transformer predictor
+  d_pred: 64
+  n_pred_layers: 6
+  n_pred_heads: 4
+  pred_use_attn_res: true
+masking:
+  mask_ratio: 0.5
+  block_size_min: 4
+  block_size_max: 8
+vicreg:
+  inv_weight: 25.0
+  var_weight: 25.0    # ablation: rely on predictor asymmetry for anti-collapse
+  cov_weight: 1.0
+  var_gamma: 1.0
+ema:
+  tau_start: 0.996
+  tau_end: 1.0
+  anneal_epochs: 100
+embedding:
+  num_codes: 1024
+  codebook_dim: 64
+  seq_len: 128
+training:
+  lr: 0.0002
+  weight_decay: 0.02
+  max_epochs: 2                 # smoke: 2 epochs on 50-shard subset (~500 steps)
+  warmup_epochs: 1
+  batch_size: 4096              # auto-scales to 512 on v6e-8 (4096/64 * 8)
+  precision: bf16
+  grad_clip: 10.0
+  n_restarts: 1
+  checkpoint_interval: 2000
+data:
+  token_dir: data/tokens_combined/
+  arrayrecord_dir: data/arrayrecord_smoke/
+  val_split: 0.1
+  num_workers: 4
+  prefetch_buffer_size: 64
